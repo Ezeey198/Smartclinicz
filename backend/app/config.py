@@ -238,50 +238,50 @@ class Settings:
         "UGX",
     ).upper()
 
-    # ---------------------------------------------------------
+       # ---------------------------------------------------------
     # Email / SMTP
     # ---------------------------------------------------------
 
-    SMTP_HOST = _env(
-        "SMTP_HOST",
-        "smtp.gmail.com",
-    )
+    SMTP_HOST = _env("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT = _env_int("SMTP_PORT", 587)
 
-    SMTP_PORT = _env_int(
-        "SMTP_PORT",
-        587,
-    )
+    # Support both old and new environment variable names.
+    SMTP_USERNAME = _env("SMTP_USERNAME", _env("SMTP_USER"))
+    SMTP_USER = _env("SMTP_USER", SMTP_USERNAME)
 
-    SMTP_USERNAME = _env(
-        "SMTP_USERNAME",
-        _env("ezekielanyama4@gmail.com", ""),
-    )
-
-    SMTP_USER = ezekielanyama4@gmail.com
-
-    SMTP_PASSWORD = _env(
-        "SMTP_PASSWORD",
-        _env("vtpifzeoqvznilyj", ""),
-    )
-
-    SMTP_PASS = vtpifzeoqvznilyj
+    SMTP_PASSWORD = _env("SMTP_PASSWORD", _env("SMTP_PASS"))
+    SMTP_PASS = _env("SMTP_PASS", SMTP_PASSWORD)
 
     SMTP_FROM_EMAIL = _env(
         "SMTP_FROM_EMAIL",
-        ezekielanyama4@gmail.com,
+        _env("SMTP_FROM", SMTP_USERNAME),
     )
 
-    SMTP_FROM = _env("SMTP_FROM", _env("SMTP_FROM_EMAIL", SMTP_USERNAME))
+    SMTP_FROM = _env("SMTP_FROM", SMTP_FROM_EMAIL)
+
+    # Email connection security.
+    SMTP_SECURITY = _env("SMTP_SECURITY", "STARTTLS").upper()
 
     SMTP_USE_TLS = _env_bool(
         "SMTP_USE_TLS",
-        True,
+        SMTP_SECURITY == "STARTTLS",
     )
 
     SMTP_USE_SSL = _env_bool(
         "SMTP_USE_SSL",
-        False,
+        SMTP_SECURITY == "SSL",
     )
+
+    # ---------------------------------------------------------
+    # General application settings
+    # ---------------------------------------------------------
+
+    APP_NAME = _env("APP_NAME", "Smartclinicz")
+    DEBUG = _env_bool("DEBUG", False)
+
+
+# Shared configuration instance imported by the application.
+    settings = Settings()
 
     # ---------------------------------------------------------
     # General application settings
