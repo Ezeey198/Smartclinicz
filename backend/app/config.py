@@ -257,14 +257,14 @@ class Settings:
         _env("ezekielanyama4@gmail.com", ""),
     )
 
-    SMTP_USER = SMTP_USERNAME
+    SMTP_USER = ezekielanyama4@gmail.com
 
     SMTP_PASSWORD = _env(
         "SMTP_PASSWORD",
         _env("vtpifzeoqvznilyj", ""),
     )
 
-    SMTP_PASS = SMTP_PASSWORD
+    SMTP_PASS = vtpifzeoqvznilyj
 
     SMTP_FROM_EMAIL = _env(
         "SMTP_FROM_EMAIL",
