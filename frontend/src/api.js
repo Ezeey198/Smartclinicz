@@ -3,7 +3,9 @@ import { store } from "./storage";
 
 export const TOKEN_KEY = "clinicpro_token";
 
-const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const API_URL = (
+  import.meta.env.VITE_API_URL || "https://smartclinicz.vercel.app"
+).trim().replace(/\/+$/, "");
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
@@ -48,9 +50,7 @@ export const errMsg = (error) => {
     return error.message || "Something went wrong. Try again.";
   }
 
-  if (typeof detail === "string") {
-    return detail;
-  }
+  if (typeof detail === "string") return detail;
 
   if (Array.isArray(detail)) {
     return detail
