@@ -246,10 +246,10 @@ class Settings:
     SMTP_PORT = _env_int("SMTP_PORT", 587)
 
     # Support both old and new environment variable names.
-    SMTP_USERNAME = _env("SMTP_USERNAME", _env("SMTP_USER"))
+    SMTP_USERNAME = _env("SMTP_USERNAME", _env("ezekielanyama4@gmail.com"))
     SMTP_USER = _env("SMTP_USER", SMTP_USERNAME)
 
-    SMTP_PASSWORD = _env("SMTP_PASSWORD", _env("SMTP_PASS"))
+    SMTP_PASSWORD = _env("SMTP_PASSWORD", _env("vtpifzeoqvznilyj"))
     SMTP_PASS = _env("SMTP_PASS", SMTP_PASSWORD)
 
     SMTP_FROM_EMAIL = _env(
