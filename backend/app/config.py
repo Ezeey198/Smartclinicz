@@ -271,10 +271,7 @@ class Settings:
         ezekielanyama4@gmail.com,
     )
 
-    SMTP_FROM_NAME = _env(
-        "SMTP_FROM_NAME",
-        "Smartclinicz",
-    )
+    SMTP_FROM = _env("SMTP_FROM", _env("SMTP_FROM_EMAIL", SMTP_USERNAME))
 
     SMTP_USE_TLS = _env_bool(
         "SMTP_USE_TLS",
