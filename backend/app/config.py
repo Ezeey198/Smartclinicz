@@ -112,3 +112,15 @@ class Settings:
         "AIRTEL_BASE_URL",
         "https://openapiuat.airtel.africa",
     ).rstrip("/")
+
+    AIRTEL_CLIENT_ID = os.getenv("AIRTEL_CLIENT_ID", "").strip()
+
+    AIRTEL_CLIENT_SECRET = os.getenv("AIRTEL_CLIENT_SECRET", "").strip()
+
+    AIRTEL_COUNTRY = os.getenv(
+        "AIRTEL_COUNTRY", "UG"
+    ).strip().upper()
+
+    AIRTEL_CURRENCY = os.getenv(
+        "AIRTEL_CURRENCY", "UGX"
+    ).strip().upper()
