@@ -6,8 +6,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
+# =============================================================
+# Environment loading
+# =============================================================
+
 # Load .env for local development.
-# In Vercel, production environment variables are supplied by the platform.
+# In Vercel, environment variables are supplied by the platform.
 load_dotenv()
 
 
@@ -63,8 +67,8 @@ def _first_env(*names: str, default: str = "") -> str:
     """
     Return the first non-empty environment variable.
 
-    This supports older environment variable names while allowing
-    newer names to take precedence.
+    Earlier names have higher priority.
+    This supports older environment variable names.
     """
     for name in names:
         value = os.getenv(name, "").strip()
@@ -81,20 +85,23 @@ def _first_env(*names: str, default: str = "") -> str:
 
 def _secret_key() -> str:
     """
-    Load the application signing key.
+    Load the application's signing key.
 
     Production:
-        SECRET_KEY must be configured and contain at least 32 characters.
+        SECRET_KEY must be configured and contain at least
+        32 characters.
 
     Local development:
-        Reuse backend/.secret_key or generate and save a new key.
+        Reuse backend/.secret_key or generate and save a key.
     """
     key = _env("SECRET_KEY")
 
     if len(key) >= 32:
         return key
 
-    if os.getenv("VERCEL") == "1":
+    # Do not generate an unpredictable key on each production
+    # startup. All production instances must use the same key.
+    if _env("VERCEL") == "1":
         raise RuntimeError(
             "SECRET_KEY must be configured in the production "
             "environment and must contain at least 32 characters."
@@ -124,6 +131,12 @@ def _secret_key() -> str:
         encoding="utf-8",
     )
 
+    # Restrict file permissions where supported.
+    try:
+        secret_file.chmod(0o600)
+    except OSError:
+        pass
+
     return key
 
 
@@ -139,10 +152,21 @@ class Settings:
     # ---------------------------------------------------------
 
     SECRET_KEY = _secret_key()
-    ALGORITHM = _env("ALGORITHM", "HS256")
 
-    TOKEN_HOURS = _env_int("TOKEN_HOURS", 12)
-    INVITE_DAYS = _env_int("INVITE_DAYS", 7)
+    ALGORITHM = _env(
+        "ALGORITHM",
+        "HS256",
+    )
+
+    TOKEN_HOURS = _env_int(
+        "TOKEN_HOURS",
+        12,
+    )
+
+    INVITE_DAYS = _env_int(
+        "INVITE_DAYS",
+        7,
+    )
 
     # ---------------------------------------------------------
     # Application URLs
@@ -163,13 +187,13 @@ class Settings:
     # ---------------------------------------------------------
 
     # SQLite is the local-development fallback.
-    # Configure DATABASE_URL with persistent PostgreSQL in Vercel.
+    # Use persistent PostgreSQL for production deployments.
     DATABASE_URL = _env(
         "DATABASE_URL",
         "sqlite:///./clinic.db",
     )
 
-    # Normalize older PostgreSQL connection URL formats.
+    # Normalize older PostgreSQL URL formats.
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace(
             "postgres://",
@@ -202,7 +226,7 @@ class Settings:
 
     SUBSCRIPTION_PRICE = _env_float(
         "SUBSCRIPTION_PRICE",
-        1000,
+        1000.0,
     )
 
     SUBSCRIPTION_HOURS = _env_int(
@@ -212,7 +236,7 @@ class Settings:
 
     TRIAL_HOURS = _env_float(
         "TRIAL_HOURS",
-        2,
+        2.0,
     )
 
     # ---------------------------------------------------------
@@ -301,6 +325,14 @@ class Settings:
     # Email / SMTP
     # ---------------------------------------------------------
 
+    # Gmail:
+    #   Host: smtp.gmail.com
+    #   Port: 587 with STARTTLS
+    #   Port: 465 with SSL
+    #
+    # Credentials must come from environment variables.
+    # Never hardcode SMTP passwords in this file.
+
     SMTP_HOST = _env(
         "SMTP_HOST",
         "smtp.gmail.com",
@@ -311,27 +343,29 @@ class Settings:
         587,
     )
 
-    # Prefer SMTP_USERNAME, but support the older SMTP_USER name.
+    if not 1 <= SMTP_PORT <= 65535:
+        raise ValueError(
+            "SMTP_PORT must be between 1 and 65535."
+        )
+
+    # Support both new and legacy environment variable names.
+    # New names take precedence when both are supplied.
+
     SMTP_USERNAME = _first_env(
         "SMTP_USERNAME",
-        "ezekielanyama4@gmail.com",
-    )
-
-    SMTP_USER = _first_env(
         "SMTP_USER",
-        "ezekielanyama4@gmail.com",
     )
 
-    # Prefer SMTP_PASSWORD, but support the older SMTP_PASS name.
+    # Backwards compatibility for code using SMTP_USER.
+    SMTP_USER = SMTP_USERNAME
+
     SMTP_PASSWORD = _first_env(
         "SMTP_PASSWORD",
-        "vtpifzeoqvznilyj",
+        "SMTP_PASS",
     )
 
-    SMTP_PASS = _first_env(
-        "SMTP_PASS",
-        "vtpifzeoqvznilyj",
-    )
+    # Backwards compatibility for code using SMTP_PASS.
+    SMTP_PASS = SMTP_PASSWORD
 
     SMTP_FROM_EMAIL = _first_env(
         "SMTP_FROM_EMAIL",
@@ -339,11 +373,8 @@ class Settings:
         default=SMTP_USERNAME,
     )
 
-    SMTP_FROM = _first_env(
-        "SMTP_FROM",
-        "SMTP_FROM_EMAIL",
-        default=SMTP_USERNAME,
-    )
+    # Backwards compatibility for code using SMTP_FROM.
+    SMTP_FROM = SMTP_FROM_EMAIL
 
     # Supported modes: STARTTLS, SSL, NONE.
     SMTP_SECURITY = _env(
@@ -360,6 +391,9 @@ class Settings:
             "SMTP_SECURITY must be STARTTLS, SSL, or NONE."
         )
 
+    # Compatibility flags for existing email services.
+    # These can be explicitly overridden through environment
+    # variables, but must not both be enabled.
     SMTP_USE_TLS = _env_bool(
         "SMTP_USE_TLS",
         SMTP_SECURITY == "STARTTLS",
