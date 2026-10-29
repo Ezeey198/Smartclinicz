@@ -303,7 +303,7 @@ class Settings:
 
     SMTP_HOST = _env(
         "SMTP_HOST",
-        "",
+        "smtp.gmail.com",
     )
 
     SMTP_PORT = _env_int(
@@ -314,23 +314,23 @@ class Settings:
     # Prefer SMTP_USERNAME, but support the older SMTP_USER name.
     SMTP_USERNAME = _first_env(
         "SMTP_USERNAME",
-        "SMTP_USER",
+        "ezekielanyama4@gmail.com",
     )
 
     SMTP_USER = _first_env(
         "SMTP_USER",
-        "SMTP_USERNAME",
+        "ezekielanyama4@gmail.com",
     )
 
     # Prefer SMTP_PASSWORD, but support the older SMTP_PASS name.
     SMTP_PASSWORD = _first_env(
         "SMTP_PASSWORD",
-        "SMTP_PASS",
+        "vtpifzeoqvznilyj",
     )
 
     SMTP_PASS = _first_env(
         "SMTP_PASS",
-        "SMTP_PASSWORD",
+        "vtpifzeoqvznilyj",
     )
 
     SMTP_FROM_EMAIL = _first_env(
