@@ -1,3 +1,4 @@
+
 import os
 import secrets
 from pathlib import Path
@@ -5,21 +6,90 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-# Load environment variables for local development.
+# Load .env for local development.
+# In Vercel, production environment variables are supplied by the platform.
 load_dotenv()
 
 
+# =============================================================
+# Environment helpers
+# =============================================================
+
+def _env(name: str, default: str = "") -> str:
+    """Read and trim a string environment variable."""
+    return os.getenv(name, default).strip()
+
+
+def _env_int(name: str, default: int) -> int:
+    """Read an integer environment variable."""
+    value = _env(name, str(default))
+
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"{name} must be a valid integer."
+        ) from exc
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a floating-point environment variable."""
+    value = _env(name, str(default))
+
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"{name} must be a valid number."
+        ) from exc
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Read a boolean environment variable."""
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _first_env(*names: str, default: str = "") -> str:
+    """
+    Return the first non-empty environment variable.
+
+    This supports older environment variable names while allowing
+    newer names to take precedence.
+    """
+    for name in names:
+        value = os.getenv(name, "").strip()
+
+        if value:
+            return value
+
+    return default
+
+
+# =============================================================
+# Security
+# =============================================================
+
 def _secret_key() -> str:
     """
-    Load a secure application secret.
+    Load the application signing key.
 
     Production:
-        SECRET_KEY must be explicitly configured in the environment.
+        SECRET_KEY must be configured and contain at least 32 characters.
 
     Local development:
-        Reuse backend/.secret_key or generate a new key.
+        Reuse backend/.secret_key or generate and save a new key.
     """
-    key = os.getenv("SECRET_KEY", "").strip()
+    key = _env("SECRET_KEY")
 
     if len(key) >= 32:
         return key
@@ -30,56 +100,46 @@ def _secret_key() -> str:
             "environment and must contain at least 32 characters."
         )
 
-    secret_file = Path(__file__).resolve().parent.parent / ".secret_key"
+    secret_file = (
+        Path(__file__).resolve().parent.parent / ".secret_key"
+    )
 
     if secret_file.exists():
-        saved_key = secret_file.read_text(encoding="utf-8").strip()
+        saved_key = secret_file.read_text(
+            encoding="utf-8"
+        ).strip()
 
         if len(saved_key) >= 32:
             return saved_key
 
     key = secrets.token_urlsafe(48)
 
-    secret_file.parent.mkdir(parents=True, exist_ok=True)
-    secret_file.write_text(key, encoding="utf-8")
+    secret_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    secret_file.write_text(
+        key,
+        encoding="utf-8",
+    )
 
     return key
 
 
-def _env_int(name: str, default: int) -> int:
-    """Read an integer environment variable."""
-    return int(os.getenv(name, str(default)).strip())
-
-
-def _env_float(name: str, default: float) -> float:
-    """Read a floating-point environment variable."""
-    return float(os.getenv(name, str(default)).strip())
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    """Read a boolean environment variable."""
-    value = os.getenv(name)
-
-    if value is None:
-        return default
-
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env(name: str, default: str = "") -> str:
-    """Read and trim a string environment variable."""
-    return os.getenv(name, default).strip()
-
+# =============================================================
+# Application configuration
+# =============================================================
 
 class Settings:
-    """Central application configuration."""
+    """Central configuration for Smartclinicz."""
 
     # ---------------------------------------------------------
     # Security and authentication
     # ---------------------------------------------------------
 
     SECRET_KEY = _secret_key()
-    ALGORITHM = "HS256"
+    ALGORITHM = _env("ALGORITHM", "HS256")
 
     TOKEN_HOURS = _env_int("TOKEN_HOURS", 12)
     INVITE_DAYS = _env_int("INVITE_DAYS", 7)
@@ -102,15 +162,14 @@ class Settings:
     # Database
     # ---------------------------------------------------------
 
-    # For production, configure DATABASE_URL with your actual
-    # PostgreSQL connection string in Vercel.
-    #
-    # SQLite is retained as a local-development fallback.
+    # SQLite is the local-development fallback.
+    # Configure DATABASE_URL with persistent PostgreSQL in Vercel.
     DATABASE_URL = _env(
         "DATABASE_URL",
         "sqlite:///./clinic.db",
     )
 
+    # Normalize older PostgreSQL connection URL formats.
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace(
             "postgres://",
@@ -119,7 +178,7 @@ class Settings:
         )
 
     # ---------------------------------------------------------
-    # Superadmin bootstrap settings
+    # Superadmin bootstrap
     # ---------------------------------------------------------
 
     SUPERADMIN_NAME = _env(
@@ -157,7 +216,7 @@ class Settings:
     )
 
     # ---------------------------------------------------------
-    # Payment mode
+    # Payment configuration
     # ---------------------------------------------------------
 
     PAYMENT_MODE = _env(
@@ -176,7 +235,7 @@ class Settings:
     )
 
     # ---------------------------------------------------------
-    # MTN Mobile Money Collections
+    # MTN Mobile Money
     # ---------------------------------------------------------
 
     MTN_BASE_URL = _env(
@@ -238,29 +297,68 @@ class Settings:
         "UGX",
     ).upper()
 
-       # ---------------------------------------------------------
+    # ---------------------------------------------------------
     # Email / SMTP
     # ---------------------------------------------------------
 
-    SMTP_HOST = _env("SMTP_HOST", "smtp.gmail.com")
-    SMTP_PORT = _env_int("SMTP_PORT", 587)
-
-    # Support both old and new environment variable names.
-    SMTP_USERNAME = _env("SMTP_USERNAME", _env("ezekielanyama4@gmail.com"))
-    SMTP_USER = _env("SMTP_USER", SMTP_USERNAME)
-
-    SMTP_PASSWORD = _env("SMTP_PASSWORD", _env("vtpifzeoqvznilyj"))
-    SMTP_PASS = _env("SMTP_PASS", SMTP_PASSWORD)
-
-    SMTP_FROM_EMAIL = _env(
-        "SMTP_FROM_EMAIL",
-        _env("SMTP_FROM", SMTP_USERNAME),
+    SMTP_HOST = _env(
+        "SMTP_HOST",
+        "",
     )
 
-    SMTP_FROM = _env("SMTP_FROM", SMTP_FROM_EMAIL)
+    SMTP_PORT = _env_int(
+        "SMTP_PORT",
+        587,
+    )
 
-    # Email connection security.
-    SMTP_SECURITY = _env("SMTP_SECURITY", "STARTTLS").upper()
+    # Prefer SMTP_USERNAME, but support the older SMTP_USER name.
+    SMTP_USERNAME = _first_env(
+        "SMTP_USERNAME",
+        "SMTP_USER",
+    )
+
+    SMTP_USER = _first_env(
+        "SMTP_USER",
+        "SMTP_USERNAME",
+    )
+
+    # Prefer SMTP_PASSWORD, but support the older SMTP_PASS name.
+    SMTP_PASSWORD = _first_env(
+        "SMTP_PASSWORD",
+        "SMTP_PASS",
+    )
+
+    SMTP_PASS = _first_env(
+        "SMTP_PASS",
+        "SMTP_PASSWORD",
+    )
+
+    SMTP_FROM_EMAIL = _first_env(
+        "SMTP_FROM_EMAIL",
+        "SMTP_FROM",
+        default=SMTP_USERNAME,
+    )
+
+    SMTP_FROM = _first_env(
+        "SMTP_FROM",
+        "SMTP_FROM_EMAIL",
+        default=SMTP_USERNAME,
+    )
+
+    # Supported modes: STARTTLS, SSL, NONE.
+    SMTP_SECURITY = _env(
+        "SMTP_SECURITY",
+        "STARTTLS",
+    ).upper()
+
+    if SMTP_SECURITY not in {
+        "STARTTLS",
+        "SSL",
+        "NONE",
+    }:
+        raise ValueError(
+            "SMTP_SECURITY must be STARTTLS, SSL, or NONE."
+        )
 
     SMTP_USE_TLS = _env_bool(
         "SMTP_USE_TLS",
@@ -272,16 +370,10 @@ class Settings:
         SMTP_SECURITY == "SSL",
     )
 
-    # ---------------------------------------------------------
-    # General application settings
-    # ---------------------------------------------------------
-
-    APP_NAME = _env("APP_NAME", "Smartclinicz")
-    DEBUG = _env_bool("DEBUG", False)
-
-
-# Shared configuration instance imported by the application.
-    settings = Settings()
+    if SMTP_USE_TLS and SMTP_USE_SSL:
+        raise ValueError(
+            "SMTP_USE_TLS and SMTP_USE_SSL cannot both be true."
+        )
 
     # ---------------------------------------------------------
     # General application settings
@@ -298,5 +390,8 @@ class Settings:
     )
 
 
-# Shared configuration instance imported by the application.
+# =============================================================
+# Shared configuration instance
+# =============================================================
+
 settings = Settings()
