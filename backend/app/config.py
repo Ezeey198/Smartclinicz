@@ -254,21 +254,21 @@ class Settings:
 
     SMTP_USERNAME = _env(
         "SMTP_USERNAME",
-        _env("SMTP_USER", ""),
+        _env("ezekielanyama4@gmail.com", ""),
     )
 
     SMTP_USER = SMTP_USERNAME
 
     SMTP_PASSWORD = _env(
         "SMTP_PASSWORD",
-        _env("SMTP_PASS", ""),
+        _env("vtpifzeoqvznilyj", ""),
     )
 
     SMTP_PASS = SMTP_PASSWORD
 
     SMTP_FROM_EMAIL = _env(
         "SMTP_FROM_EMAIL",
-        SMTP_USERNAME,
+        ezekielanyama4@gmail.com,
     )
 
     SMTP_FROM_NAME = _env(
