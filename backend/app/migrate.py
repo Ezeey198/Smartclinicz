@@ -2,8 +2,9 @@
 """
 Lightweight schema upgrade utilities.
 
-These functions help existing databases accommodate newly added
-model columns. For substantial schema changes, use Alembic migrations.
+Adds missing model columns to existing tables and grants trials
+to eligible clinics. For production schema evolution, use Alembic
+or another controlled migration framework.
 """
 
 from datetime import datetime, timedelta
@@ -19,17 +20,18 @@ def ensure_columns():
     """
     Add missing columns to existing tables.
 
-    Existing tables are inspected before adding columns. Tables that
-    do not exist are left to Base.metadata.create_all(engine).
+    Tables that do not exist are created by Base.metadata.create_all()
+    during application startup.
 
-    Note:
-    This is a lightweight migration helper, not a replacement for
-    a full database migration framework.
+    This function does not migrate existing column types, constraints,
+    indexes, or data.
     """
 
     with engine.begin() as conn:
         inspector = inspect(conn)
         existing_tables = set(inspector.get_table_names())
+
+        preparer = conn.dialect.identifier_preparer
 
         for table in Base.metadata.sorted_tables:
             if table.name not in existing_tables:
@@ -40,41 +42,38 @@ def ensure_columns():
                 for column in inspector.get_columns(table.name)
             }
 
+            quoted_table = preparer.quote(table.name)
+
             for column in table.columns:
                 if column.name in existing_columns:
                     continue
 
-                # Generate the database-specific column type.
+                # Compile the SQL type for the current database dialect.
                 column_type = column.type.compile(
                     dialect=conn.dialect
                 )
 
-                # Quote identifiers using the active database dialect.
-                preparer = conn.dialect.identifier_preparer
-                table_name = preparer.quote(table.name)
-                column_name = preparer.quote(column.name)
+                quoted_column = preparer.quote(column.name)
 
                 statement = (
-                    f"ALTER TABLE {table_name} "
-                    f"ADD COLUMN {column_name} {column_type}"
+                    f"ALTER TABLE {quoted_table} "
+                    f"ADD COLUMN {quoted_column} {column_type}"
                 )
 
                 conn.execute(text(statement))
-
-                # Prevent duplicate additions during this execution.
                 existing_columns.add(column.name)
 
 
 def grandfather_trials():
     """
-    Give eligible previously approved clinics a trial period.
+    Grant a trial to approved clinics that do not yet have an
+    active_until timestamp.
 
-    Only clinics that have been approved and do not currently have
-    an active_until value are updated.
-
-    This preserves the existing application behavior. For guaranteed
-    one-time trial grants, store a separate trial-granted timestamp
-    or use an explicit data migration.
+    IMPORTANT:
+    This retains the existing eligibility rules. It does not
+    independently record whether a clinic received a trial before.
+    For a guaranteed one-time grant, implement a separate migration
+    marker or trial-granted timestamp.
     """
 
     trial_expiry = datetime.utcnow() + timedelta(
@@ -90,6 +89,9 @@ def grandfather_trials():
             )
             .all()
         )
+
+        if not clinics:
+            return
 
         for clinic in clinics:
             clinic.active_until = trial_expiry
