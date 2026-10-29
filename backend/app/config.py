@@ -110,4 +110,5 @@ class Settings:
     # Airtel Money
     AIRTEL_BASE_URL = os.getenv(
         "AIRTEL_BASE_URL",
-        "https://openapiuat.air
+        "https://openapiuat.airtel.africa",
+    ).rstrip("/")
