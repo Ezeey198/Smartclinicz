@@ -1,7 +1,10 @@
 // Full patient history in one place: visits, appointments, lab, prescriptions, imaging.
 import { useEffect, useState } from "react";
-import { Printer } from "lucide-react";
+import { Printer, Stamp as StampIcon } from "lucide-react";
 import api, { errMsg } from "../api";
+import { DOCS, STAMPERS } from "../config/documents";
+import { useAuth } from "../auth";
+import DocumentModal from "./DocumentModal";
 import { Empty, Notice, PageHead, Pill, Spinner, fmtDate } from "./ui";
 
 const SECTIONS = [
@@ -17,6 +20,8 @@ export default function PatientFile() {
   const [q, setQ] = useState("");
   const [file, setFile] = useState(null);
   const [err, setErr] = useState("");
+  const { user } = useAuth();
+  const [doc, setDoc] = useState(null);
   useEffect(() => { api.get("/patients").then((r) => setPatients(r.data)).catch((e) => setErr(errMsg(e))); }, []);
 
   const open = async (id) => {
@@ -29,6 +34,7 @@ export default function PatientFile() {
   return (
     <>
       <PageHead title="Patient files" sub="Search for a patient to see everything recorded about them.">
+        {file && (user.role === "admin" || STAMPERS.patient_summary.includes(user.role)) && <button className="btn ghost" onClick={() => setDoc(DOCS.patient_summary(file.patient))}><StampIcon size={16} />Print and stamp summary</button>}
         {file && <button className="btn ghost" onClick={() => window.print()}><Printer size={16} />Print</button>}
       </PageHead>
       {err && <Notice tone="error">{err}</Notice>}
@@ -62,6 +68,7 @@ export default function PatientFile() {
           ))}
         </>
       )}
+          {doc && <DocumentModal doc={doc} onClose={() => setDoc(null)} />}
     </>
   );
 }
