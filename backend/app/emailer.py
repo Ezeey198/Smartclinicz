@@ -1,4 +1,5 @@
 import smtplib
+import ssl
 from email.message import EmailMessage
 from sqlalchemy.orm import Session
 from .config import settings
@@ -20,14 +21,17 @@ def _html(title, lines, button, link):
 
 
 def _send(msg: EmailMessage):
-    if settings.SMTP_SECURITY == "ssl":
-        server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
-    else:
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+    host, port = settings.SMTP_HOST, settings.SMTP_PORT
+    implicit_tls = settings.SMTP_SECURITY == "ssl" or port == 465
+    server = smtplib.SMTP_SSL(host, port, timeout=20) if implicit_tls else smtplib.SMTP(host, port, timeout=20)
     with server as s:
-        if settings.SMTP_SECURITY == "starttls":
-            s.starttls()
+        s.ehlo()
+        if not implicit_tls and s.has_extn("starttls"):   # always encrypt before logging in
+            s.starttls(context=ssl.create_default_context())
+            s.ehlo()
         if settings.SMTP_USER:
+            if not s.has_extn("auth"):
+                raise RuntimeError(f"The mail server {host}:{port} does not offer login. Check SMTP_HOST and SMTP_PORT (Gmail uses smtp.gmail.com and 587).")
             s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         s.send_message(msg)
 
