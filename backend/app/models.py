@@ -30,6 +30,9 @@ class Clinic(Base):
     active_until = Column(DateTime)            # subscription / trial end
     has_paid = Column(Boolean, default=False)  # False while still on the free trial
     wallet_balance = Column(Float, default=0)
+    stamp_image = Column(Text)        # the clinic's digital stamp as a PNG data URL
+    stamp_ink = Column(String(9))     # main ink colour of the stamp, used for the date line
+    stamp_updated = Column(DateTime)
     created_at = Column(DateTime, default=now)
     users = relationship("User", back_populates="clinic")
 
@@ -312,5 +315,19 @@ class PaymentRequest(Base):
     completed_at = Column(DateTime)
 
 
+class StampUse(Base):
+    """Every time somebody puts the clinic stamp on a document: who, which document, and when."""
+    __tablename__ = "stamp_uses"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    user_id = Column(Integer, index=True)
+    user_name = Column(String(150))
+    role = Column(String(30))
+    doc_type = Column(String(30), index=True)
+    doc_id = Column(Integer, index=True)
+    doc_ref = Column(String(80))
+    stamped_at = Column(DateTime, default=now)
+
+
 CLINIC_DATA = [Patient, Appointment, Visit, LabOrder, Prescription, Invoice, InventoryItem, ImagingOrder, Expense, LeaveRequest, Payment,
-               ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest]
+               ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse]
