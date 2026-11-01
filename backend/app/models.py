@@ -328,6 +328,5 @@ class StampUse(Base):
     doc_ref = Column(String(80))
     stamped_at = Column(DateTime, default=now)
 
-
 CLINIC_DATA = [Patient, Appointment, Visit, LabOrder, Prescription, Invoice, InventoryItem, ImagingOrder, Expense, LeaveRequest, Payment,
                ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse]
