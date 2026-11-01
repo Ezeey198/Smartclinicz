@@ -12,6 +12,7 @@ from .routers import (
     auth,
     clinic,
     finance,
+    stamps,
     hr,
     patient_file,
     payments,
@@ -115,6 +116,7 @@ API_ROUTERS = [
     activity.router,
     stock.router,
     payments.router,
+    stamps.router,
     *records.routers,
 ]
 
