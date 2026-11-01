@@ -1,431 +1,67 @@
-
 import os
 import secrets
 from pathlib import Path
-
 from dotenv import load_dotenv
 
-
-# =============================================================
-# Environment loading
-# =============================================================
-
-# Load .env for local development.
-# In Vercel, environment variables are supplied by the platform.
 load_dotenv()
 
 
-# =============================================================
-# Environment helpers
-# =============================================================
-
 def _env(name: str, default: str = "") -> str:
-    """Read and trim a string environment variable."""
-    return os.getenv(name, default).strip()
+    """Reads a setting and strips stray spaces and quotes (hosting panels often add them)."""
+    return os.getenv(name, default).strip().strip('"').strip("'").strip()
 
-
-def _env_int(name: str, default: int) -> int:
-    """Read an integer environment variable."""
-    value = _env(name, str(default))
-
-    try:
-        return int(value)
-    except ValueError as exc:
-        raise ValueError(
-            f"{name} must be a valid integer."
-        ) from exc
-
-
-def _env_float(name: str, default: float) -> float:
-    """Read a floating-point environment variable."""
-    value = _env(name, str(default))
-
-    try:
-        return float(value)
-    except ValueError as exc:
-        raise ValueError(
-            f"{name} must be a valid number."
-        ) from exc
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    """Read a boolean environment variable."""
-    value = os.getenv(name)
-
-    if value is None:
-        return default
-
-    return value.strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-
-def _first_env(*names: str, default: str = "") -> str:
-    """
-    Return the first non-empty environment variable.
-
-    Earlier names have higher priority.
-    This supports older environment variable names.
-    """
-    for name in names:
-        value = os.getenv(name, "").strip()
-
-        if value:
-            return value
-
-    return default
-
-
-# =============================================================
-# Security
-# =============================================================
 
 def _secret_key() -> str:
-    """
-    Load the application's signing key.
-
-    Production:
-        SECRET_KEY must be configured and contain at least
-        32 characters.
-
-    Local development:
-        Reuse backend/.secret_key or generate and save a key.
-    """
-    key = _env("SECRET_KEY")
-
+    """Use SECRET_KEY from .env when it is long enough; otherwise create and reuse a strong one."""
+    key = os.getenv("SECRET_KEY", "")
     if len(key) >= 32:
         return key
-
-    # Do not generate an unpredictable key on each production
-    # startup. All production instances must use the same key.
-    if _env("VERCEL") == "1":
-        raise RuntimeError(
-            "SECRET_KEY must be configured in the production "
-            "environment and must contain at least 32 characters."
-        )
-
-    secret_file = (
-        Path(__file__).resolve().parent.parent / ".secret_key"
-    )
-
-    if secret_file.exists():
-        saved_key = secret_file.read_text(
-            encoding="utf-8"
-        ).strip()
-
-        if len(saved_key) >= 32:
-            return saved_key
-
+    f = Path(__file__).resolve().parent.parent / ".secret_key"
+    if f.exists() and len(f.read_text().strip()) >= 32:
+        return f.read_text().strip()
     key = secrets.token_urlsafe(48)
-
-    secret_file.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    secret_file.write_text(
-        key,
-        encoding="utf-8",
-    )
-
-    # Restrict file permissions where supported.
-    try:
-        secret_file.chmod(0o600)
-    except OSError:
-        pass
-
+    f.write_text(key)
     return key
 
 
-# =============================================================
-# Application configuration
-# =============================================================
-
 class Settings:
-    """Central configuration for Smartclinicz."""
-
-    # ---------------------------------------------------------
-    # Security and authentication
-    # ---------------------------------------------------------
-
     SECRET_KEY = _secret_key()
-
-    ALGORITHM = _env(
-        "ALGORITHM",
-        "HS256",
-    )
-
-    TOKEN_HOURS = _env_int(
-        "TOKEN_HOURS",
-        12,
-    )
-
-    INVITE_DAYS = _env_int(
-        "INVITE_DAYS",
-        7,
-    )
-
-    # ---------------------------------------------------------
-    # Application URLs
-    # ---------------------------------------------------------
-
-    FRONTEND_URL = _env(
-        "FRONTEND_URL",
-        "http://localhost:5173",
-    ).rstrip("/")
-
-    PUBLIC_API_URL = _env(
-        "PUBLIC_API_URL",
-        "",
-    ).rstrip("/")
-
-    # ---------------------------------------------------------
-    # Database
-    # ---------------------------------------------------------
-
-    # SQLite is the local-development fallback.
-    # Use persistent PostgreSQL for production deployments.
-    DATABASE_URL = _env(
-        "DATABASE_URL",
-        "sqlite:///./clinic.db",
-    )
-
-    # Normalize older PostgreSQL URL formats.
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace(
-            "postgres://",
-            "postgresql://",
-            1,
-        )
-
-    # ---------------------------------------------------------
-    # Superadmin bootstrap
-    # ---------------------------------------------------------
-
-    SUPERADMIN_NAME = _env(
-        "SUPERADMIN_NAME",
-        "System Administrator",
-    )
-
-    SUPERADMIN_EMAIL = _env(
-        "SUPERADMIN_EMAIL",
-        "admin@example.com",
-    ).lower()
-
-    SUPERADMIN_PASSWORD = _env(
-        "SUPERADMIN_PASSWORD",
-        "",
-    )
-
-    # ---------------------------------------------------------
-    # Subscription settings
-    # ---------------------------------------------------------
-
-    SUBSCRIPTION_PRICE = _env_float(
-        "SUBSCRIPTION_PRICE",
-        1000.0,
-    )
-
-    SUBSCRIPTION_HOURS = _env_int(
-        "SUBSCRIPTION_HOURS",
-        24,
-    )
-
-    TRIAL_HOURS = _env_float(
-        "TRIAL_HOURS",
-        2.0,
-    )
-
-    # ---------------------------------------------------------
-    # Payment configuration
-    # ---------------------------------------------------------
-
-    PAYMENT_MODE = _env(
-        "PAYMENT_MODE",
-        "simulated",
-    ).lower()
-
-    if PAYMENT_MODE not in {"simulated", "live"}:
-        raise ValueError(
-            "PAYMENT_MODE must be 'simulated' or 'live'."
-        )
-
-    PHONE_COUNTRY_CODE = _env(
-        "PHONE_COUNTRY_CODE",
-        "256",
-    )
-
-    # ---------------------------------------------------------
-    # MTN Mobile Money
-    # ---------------------------------------------------------
-
-    MTN_BASE_URL = _env(
-        "MTN_BASE_URL",
-        "https://sandbox.momodeveloper.mtn.com",
-    ).rstrip("/")
-
-    MTN_TARGET_ENV = _env(
-        "MTN_TARGET_ENV",
-        "sandbox",
-    )
-
-    MTN_CURRENCY = _env(
-        "MTN_CURRENCY",
-        "EUR",
-    ).upper()
-
-    MTN_SUBSCRIPTION_KEY = _env(
-        "MTN_SUBSCRIPTION_KEY",
-        "",
-    )
-
-    MTN_API_USER = _env(
-        "MTN_API_USER",
-        "",
-    )
-
-    MTN_API_KEY = _env(
-        "MTN_API_KEY",
-        "",
-    )
-
-    # ---------------------------------------------------------
+    ALGORITHM = "HS256"
+    TOKEN_HOURS = int(os.getenv("TOKEN_HOURS", "12"))
+    INVITE_DAYS = int(os.getenv("INVITE_DAYS", "7"))
+    SUBSCRIPTION_PRICE = float(os.getenv("SUBSCRIPTION_PRICE", "1000"))   # UGX per period
+    SUBSCRIPTION_HOURS = int(os.getenv("SUBSCRIPTION_HOURS", "24"))       # length of one paid period
+    TRIAL_HOURS = float(os.getenv("TRIAL_HOURS", "2"))                    # free time after a clinic is approved
+    PAYMENT_MODE = os.getenv("PAYMENT_MODE", "simulated")                 # simulated | live
+    PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", "").rstrip("/")          # https address of this API, lets providers call back
+    PHONE_COUNTRY_CODE = os.getenv("PHONE_COUNTRY_CODE", "256")
+    # MTN MoMo Collections
+    MTN_BASE_URL = os.getenv("MTN_BASE_URL", "https://sandbox.momodeveloper.mtn.com").rstrip("/")
+    MTN_TARGET_ENV = os.getenv("MTN_TARGET_ENV", "sandbox")               # sandbox | mtnuganda
+    MTN_CURRENCY = os.getenv("MTN_CURRENCY", "EUR")                       # the MTN sandbox only accepts EUR; use UGX in production
+    MTN_SUBSCRIPTION_KEY = os.getenv("MTN_SUBSCRIPTION_KEY", "")
+    MTN_API_USER = os.getenv("MTN_API_USER", "")
+    MTN_API_KEY = os.getenv("MTN_API_KEY", "")
     # Airtel Money
-    # ---------------------------------------------------------
+    AIRTEL_BASE_URL = os.getenv("AIRTEL_BASE_URL", "https://openapiuat.airtel.africa").rstrip("/")
+    AIRTEL_CLIENT_ID = os.getenv("AIRTEL_CLIENT_ID", "")
+    AIRTEL_CLIENT_SECRET = os.getenv("AIRTEL_CLIENT_SECRET", "")
+    AIRTEL_COUNTRY = os.getenv("AIRTEL_COUNTRY", "UG")
+    AIRTEL_CURRENCY = os.getenv("AIRTEL_CURRENCY", "UGX")
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./clinic.db")
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    SMTP_HOST = _env("SMTP_HOST")
+    SMTP_PORT = int(_env("SMTP_PORT", "587") or 587)
+    SMTP_SECURITY = (_env("SMTP_SECURITY", "starttls") or "starttls").lower()  # starttls (587) | ssl (465) | none
+    SMTP_USER = _env("SMTP_USER")
+    SMTP_PASSWORD = _env("SMTP_PASSWORD")
+    SMTP_FROM = _env("SMTP_FROM", "ClinicPro <no-reply@clinicpro.local>")
+    SUPERADMIN_NAME = os.getenv("SUPERADMIN_NAME", "System Administrator")
+    SUPERADMIN_EMAIL = os.getenv("SUPERADMIN_EMAIL", "superadmin@clinicpro.local")
+    SUPERADMIN_PASSWORD = os.getenv("SUPERADMIN_PASSWORD", "ChangeMe123!")
 
-    AIRTEL_BASE_URL = _env(
-        "AIRTEL_BASE_URL",
-        "https://openapiuat.airtel.africa",
-    ).rstrip("/")
-
-    AIRTEL_CLIENT_ID = _env(
-        "AIRTEL_CLIENT_ID",
-        "",
-    )
-
-    AIRTEL_CLIENT_SECRET = _env(
-        "AIRTEL_CLIENT_SECRET",
-        "",
-    )
-
-    AIRTEL_COUNTRY = _env(
-        "AIRTEL_COUNTRY",
-        "UG",
-    ).upper()
-
-    AIRTEL_CURRENCY = _env(
-        "AIRTEL_CURRENCY",
-        "UGX",
-    ).upper()
-
-    # ---------------------------------------------------------
-    # Email / SMTP
-    # ---------------------------------------------------------
-
-    # Gmail:
-    #   Host: smtp.gmail.com
-    #   Port: 587 with STARTTLS
-    #   Port: 465 with SSL
-    #
-    # Credentials must come from environment variables.
-    # Never hardcode SMTP passwords in this file.
-
-    SMTP_HOST = _env(
-        "SMTP_HOST",
-        "smtp.gmail.com",
-    )
-
-    SMTP_PORT = _env_int(
-        "SMTP_PORT",
-        587,
-    )
-
-    if not 1 <= SMTP_PORT <= 65535:
-        raise ValueError(
-            "SMTP_PORT must be between 1 and 65535."
-        )
-
-    # Support both new and legacy environment variable names.
-    # New names take precedence when both are supplied.
-
-    SMTP_USERNAME = _first_env(
-        "SMTP_USERNAME",
-        "SMTP_USER",
-    )
-
-    # Backwards compatibility for code using SMTP_USER.
-    SMTP_USER = SMTP_USERNAME
-
-    SMTP_PASSWORD = _first_env(
-        "SMTP_PASSWORD",
-        "SMTP_PASS",
-    )
-
-    # Backwards compatibility for code using SMTP_PASS.
-    SMTP_PASS = SMTP_PASSWORD
-
-    SMTP_FROM_EMAIL = _first_env(
-        "SMTP_FROM_EMAIL",
-        "SMTP_FROM",
-        default=SMTP_USERNAME,
-    )
-
-    # Backwards compatibility for code using SMTP_FROM.
-    SMTP_FROM = SMTP_FROM_EMAIL
-
-    # Supported modes: STARTTLS, SSL, NONE.
-    SMTP_SECURITY = _env(
-        "SMTP_SECURITY",
-        "STARTTLS",
-    ).upper()
-
-    if SMTP_SECURITY not in {
-        "STARTTLS",
-        "SSL",
-        "NONE",
-    }:
-        raise ValueError(
-            "SMTP_SECURITY must be STARTTLS, SSL, or NONE."
-        )
-
-    # Compatibility flags for existing email services.
-    # These can be explicitly overridden through environment
-    # variables, but must not both be enabled.
-    SMTP_USE_TLS = _env_bool(
-        "SMTP_USE_TLS",
-        SMTP_SECURITY == "STARTTLS",
-    )
-
-    SMTP_USE_SSL = _env_bool(
-        "SMTP_USE_SSL",
-        SMTP_SECURITY == "SSL",
-    )
-
-    if SMTP_USE_TLS and SMTP_USE_SSL:
-        raise ValueError(
-            "SMTP_USE_TLS and SMTP_USE_SSL cannot both be true."
-        )
-
-    # ---------------------------------------------------------
-    # General application settings
-    # ---------------------------------------------------------
-
-    APP_NAME = _env(
-        "APP_NAME",
-        "Smartclinicz",
-    )
-
-    DEBUG = _env_bool(
-        "DEBUG",
-        False,
-    )
-
-
-# =============================================================
-# Shared configuration instance
-# =============================================================
 
 settings = Settings()
+if "gmail" in settings.SMTP_HOST.lower():
+    settings.SMTP_PASSWORD = settings.SMTP_PASSWORD.replace(" ", "")   # Google shows app passwords in groups of four
+
