@@ -17,6 +17,11 @@
   2. **Airtel:** register at developers.airtel.africa for a client id and secret (test server first, then production).
   3. Collected money lands in *your* merchant account with the provider. The wallet in the app is a record of each clinic's balance; paying clinics out is a separate arrangement.
 
+## Digital clinic stamp
+- The **clinic admin** opens **Clinic stamp**, uploads a photo of the real stamp, and the app turns it into a clean, transparent digital stamp in the browser (adjustable ink detail and colour, rotate if the photo is sideways).
+- Every role can open **Print and stamp** (stamp icon) on the documents it works with: invoices, receipts, prescriptions, consultation records, lab and imaging reports, appointment slips, stock records, leave letters, salary slips, patient summaries and expense vouchers. Which role may stamp which document is listed in `backend/app/routers/stamps.py`.
+- When someone stamps, the stamp is placed with **today's date added automatically** and **that person's name and role printed underneath**. The date cannot be chosen, and every use is logged (shown in the admin's Stamp history and Alerts), so a stamped document cannot be back-dated. Lab and imaging reports can only be stamped once completed or reported.
+
 ## Every role has its own pages
 Each role has its own folder in `frontend/src/roles/<role>/` with its own dashboard, pages and navigation. `roles/registry.js` maps a signed-in role to its folder.
 
