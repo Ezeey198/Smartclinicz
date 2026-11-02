@@ -1,3 +1,4 @@
+import json
 import secrets
 import string
 from datetime import datetime, timedelta
@@ -10,7 +11,7 @@ from ..config import settings
 from ..database import get_db
 from ..deps import superadmin_only
 from ..emailer import deliver, send_account_activation, send_clinic_approval, smtp_configured
-from ..models import CLINIC_DATA, Clinic, EmailOutbox, SubscriptionPayment, User
+from ..models import CLINIC_DATA, Activity, Clinic, EmailOutbox, SubscriptionPayment, User
 from ..subscriptions import iso, sub_state
 from ..security import new_link_token
 
@@ -183,21 +184,27 @@ def email_test(body: TestMail, db: Session = Depends(get_db)):
     return deliver(db, body.to, "ClinicPro test email", "Test email", ["If you can read this, email delivery works."], "Open ClinicPro", settings.FRONTEND_URL)
 
 
+GRANT = "granted_by_admin"
+
+
 @router.get("/subscriptions")
 def subscriptions(db: Session = Depends(get_db)):
-    """Read-only view of every clinic's subscription."""
+    """Every clinic's subscription, with the superadmin's activate / deactivate controls."""
     by = {}
     for p in db.query(SubscriptionPayment).order_by(SubscriptionPayment.id):
         by.setdefault(p.clinic_id, []).append(p)
     rows = []
     for c in db.query(Clinic).order_by(Clinic.id.desc()):
         ps = by.get(c.id, [])
+        paid = [p for p in ps if p.method != GRANT]
         rows.append({"id": c.id, "code": c.code, "name": c.name, "clinic_class": c.clinic_class, "status": c.status, "subscription": sub_state(c),
-                     "payments": len(ps), "total_paid": sum(p.amount or 0 for p in ps), "last_payment": iso(ps[-1].created_at) if ps else None,
+                     "payments": len(paid), "total_paid": sum(p.amount or 0 for p in paid), "last_payment": iso(paid[-1].created_at) if paid else None,
+                     "last_method": ps[-1].method if ps else None, "approved": bool(c.approved_at),
                      "admin": next(({"full_name": u.full_name, "email": u.email} for u in c.users if u.role == "admin"), None)})
     live = [r for r in rows if r["subscription"]["state"] == "active"]
-    return {"summary": {"active": len(live), "on_trial": sum(1 for r in live if r["subscription"]["trial"]),
+    return {"summary": {"active": len(live), "on_trial": sum(1 for r in live if r["subscription"]["trial"] and r["last_method"] != GRANT),
                         "expired": sum(1 for r in rows if r["subscription"]["state"] == "expired"),
+                        "deactivated": sum(1 for r in rows if r["status"] == "suspended"),
                         "revenue": sum(r["total_paid"] for r in rows), "payments": sum(r["payments"] for r in rows)}, "clinics": rows}
 
 
@@ -205,6 +212,43 @@ def subscriptions(db: Session = Depends(get_db)):
 def subscription_history(cid: int, db: Session = Depends(get_db)):
     c = _get(db, cid)
     ps = db.query(SubscriptionPayment).filter(SubscriptionPayment.clinic_id == cid).order_by(SubscriptionPayment.id.desc()).all()
-    return {"clinic": {"id": c.id, "code": c.code, "name": c.name, "clinic_class": c.clinic_class}, "subscription": sub_state(c),
+    return {"clinic": {"id": c.id, "code": c.code, "name": c.name, "clinic_class": c.clinic_class}, "subscription": sub_state(c), "status": c.status,
             "payments": [{"id": p.id, "amount": p.amount, "method": p.method, "reference": p.reference, "paid_by": p.paid_by,
                           "period_start": iso(p.period_start), "period_end": iso(p.period_end), "created_at": iso(p.created_at)} for p in ps]}
+
+
+def _tell_clinic(db, c, who, action, summary, details=None):
+    """Shows up in the clinic admin's Alerts."""
+    db.add(Activity(clinic_id=c.id, user_id=who.id, user_name=who.full_name, role="superadmin", module="subscription", action=action,
+                    summary=summary, details=json.dumps(details, default=str) if details else None))
+
+
+class GrantIn(BaseModel):
+    days: int = Field(default=1, ge=1, le=365)
+
+
+@router.post("/subscriptions/{cid}/activate")
+def activate_clinic(cid: int, body: GrantIn, me: User = Depends(superadmin_only), db: Session = Depends(get_db)):
+    """Switch a clinic on without waiting for payment: before it subscribes (trial or unpaid) or after (adds time).
+    A clinic that was never approved is approved on the admin's behalf. The grant is recorded in the subscription history."""
+    c = _get(db, cid)
+    now = datetime.utcnow()
+    if not c.approved_at:
+        c.approved_at, c.approval_token = now, None
+    c.status = "active"
+    start = max(now, c.active_until or now)
+    c.active_until = start + timedelta(days=body.days)
+    db.add(SubscriptionPayment(clinic_id=c.id, amount=0, method=GRANT, paid_by=f"{me.full_name} (superadmin)", period_start=start, period_end=c.active_until))
+    _tell_clinic(db, c, me, "activated", f"The system administrator activated the clinic for {body.days} day(s)", {"active_until": iso(c.active_until)})
+    db.commit()
+    return {"subscription": sub_state(c), "status": c.status}
+
+
+@router.post("/subscriptions/{cid}/deactivate")
+def deactivate_clinic(cid: int, me: User = Depends(superadmin_only), db: Session = Depends(get_db)):
+    """Switch a clinic off now, whether or not it has subscribed. Nobody at the clinic can sign in or renew until it is activated again."""
+    c = _get(db, cid)
+    c.status = "suspended"
+    _tell_clinic(db, c, me, "deactivated", "The system administrator deactivated the clinic")
+    db.commit()
+    return {"subscription": sub_state(c), "status": c.status}

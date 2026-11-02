@@ -49,7 +49,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     if clinic and clinic.status == "pending":
         raise HTTPException(403, "This clinic is not approved yet. The clinic admin must approve it from the email we sent.")
     if clinic and clinic.status == "suspended":
-        raise HTTPException(403, "This clinic is suspended. Contact the system administrator.")
+        raise HTTPException(403, "This clinic has been deactivated by the system administrator. Contact them to have it activated.")
     if clinic and clinic.status == "active" and user.role != "admin" and is_expired(clinic):
         raise HTTPException(403, "This clinic's subscription has ended. The clinic admin must renew it before staff can sign in.")
     return {"token": create_token(user.id), "user": me_payload(user)}

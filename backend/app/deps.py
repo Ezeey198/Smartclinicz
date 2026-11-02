@@ -24,6 +24,8 @@ def current_user(request: Request, creds=Depends(bearer), db: Session = Depends(
     if not user or not user.is_active:
         raise HTTPException(401, "Your account is inactive.")
     if user.clinic_id:
+        if user.clinic.status == "suspended":
+            raise HTTPException(403, "This clinic has been deactivated by the system administrator.")
         if user.clinic.status != "active":
             raise HTTPException(403, "This clinic is not active.")
         if is_expired(user.clinic):
