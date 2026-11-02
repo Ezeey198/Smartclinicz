@@ -3,7 +3,7 @@ import { X, Inbox } from "lucide-react";
 
 const TONES = { scheduled: "amber", requested: "amber", pending: "amber", unpaid: "amber", partial: "blue", checked_in: "blue",
   in_progress: "blue", completed: "green", dispensed: "green", paid: "green", active: "green", cancelled: "coral",
-  suspended: "coral", inactive: "gray", reported: "green", approved: "green", rejected: "coral" };
+  suspended: "coral", inactive: "gray", reported: "green", with_doctor: "blue", at_lab: "amber", back_to_doctor: "blue", at_pharmacy: "amber", awaiting_payment: "amber", approved: "green", rejected: "coral" };
 export const toneFor = (v) => TONES[v] || "gray";
 export const label = (v) => (v ? String(v).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "");
 export const fmtDate = (s) => (s ? new Date(s + "Z").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");

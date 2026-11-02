@@ -14,7 +14,7 @@ CLASS_ROLES = {
     "A": list(ROLE_LABELS.keys()),
 }
 _B = ["patients", "appointments", "visits", "lab", "pharmacy", "inventory", "billing", "prices", "accounts"]
-CLASS_MODULES = {"B": _B, "A": _B + ["imaging", "hr", "payroll"]}
+CLASS_MODULES = {"B": _B + ["cases"], "A": _B + ["imaging", "hr", "payroll"]}
 CLASS_NAMES = {"A": "Class A - full service", "B": "Class B - essential"}
 
 ROLE_DESC = {
@@ -54,6 +54,7 @@ MODULE_ACCESS = {
     "prices": {"write": ["accountant"], "read": ["receptionist", "cashier", "doctor", "nurse", "records_officer",
                                                   "lab_technician", "radiologist", "pharmacist"]},
     "payroll": {"write": ["hr_manager"], "read": ["accountant"]},
+    "cases": {"write": ["doctor", "pharmacist"], "read": ["nurse", "lab_technician"]},   # Class B patient journey
 }
 
 

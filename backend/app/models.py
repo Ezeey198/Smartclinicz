@@ -124,6 +124,7 @@ class LabOrder(Base):
     clinic_id = _cid()
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     test_name = Column(String(200))
+    encounter_id = Column(Integer, index=True)
     notes = Column(Text)
     result = Column(Text)
     status = Column(String(20), default="requested")
@@ -138,6 +139,8 @@ class Prescription(Base):
     clinic_id = _cid()
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     drug = Column(String(200))
+    encounter_id = Column(Integer, index=True)
+    quantity = Column(Float)
     dosage = Column(String(200))
     duration = Column(String(100))
     status = Column(String(20), default="pending")
@@ -328,5 +331,58 @@ class StampUse(Base):
     doc_ref = Column(String(80))
     stamped_at = Column(DateTime, default=now)
 
+
+class Encounter(Base):
+    """One patient journey in a Class B clinic: doctor -> (lab) -> doctor -> pharmacy -> one bill."""
+    __tablename__ = "encounters"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
+    case_no = Column(String(20))
+    stage = Column(String(20), default="with_doctor")  # with_doctor | at_lab | back_to_doctor | at_pharmacy | awaiting_payment | completed
+    doctor_id = Column(Integer)
+    doctor_name = Column(String(150))
+    complaints = Column(Text)
+    diagnosis = Column(Text)
+    treatment_notes = Column(Text)
+    temperature = Column(String(20))
+    blood_pressure = Column(String(20))
+    pulse = Column(String(20))
+    weight = Column(String(20))
+    invoice_id = Column(Integer)
+    created_at = Column(DateTime, default=now)
+    closed_at = Column(DateTime)
+
+
+class CaseEvent(Base):
+    """Every step of a case: who did it and when. This is what the admin tracks."""
+    __tablename__ = "case_events"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    encounter_id = Column(Integer, index=True)
+    user_id = Column(Integer)
+    user_name = Column(String(150))
+    role = Column(String(30))
+    kind = Column(String(30))
+    details = Column(Text)
+    created_at = Column(DateTime, default=now)
+
+
+class CaseCharge(Base):
+    """One line of the case bill: consultation fee, a lab test, a drug."""
+    __tablename__ = "case_charges"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    encounter_id = Column(Integer, index=True)
+    kind = Column(String(20))   # registration | consultation | lab | drug | other
+    description = Column(String(300))
+    quantity = Column(Float, default=1)
+    unit_price = Column(Float, default=0)
+    amount = Column(Float, default=0)
+    ref_id = Column(Integer)
+    added_by = Column(String(150))
+    created_at = Column(DateTime, default=now)
+
+
 CLINIC_DATA = [Patient, Appointment, Visit, LabOrder, Prescription, Invoice, InventoryItem, ImagingOrder, Expense, LeaveRequest, Payment,
-               ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse]
+               ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse, Encounter, CaseEvent, CaseCharge]

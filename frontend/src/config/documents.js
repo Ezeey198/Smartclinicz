@@ -1,12 +1,13 @@
 // What each printable document contains, and which roles may stamp it (the clinic admin may stamp all of them).
 import { fmtStamp, label, ugx } from "../components/ui";
+import { EVENT_LABEL } from "../components/cases/meta";
 
 export const STAMPERS = {
   invoice: ["accountant", "cashier", "receptionist", "pharmacist"], receipt: ["cashier", "accountant", "pharmacist"],
   prescription: ["doctor", "pharmacist"], consultation: ["doctor", "nurse"], lab_report: ["lab_technician", "doctor"],
   imaging_report: ["radiologist", "doctor"], appointment_slip: ["receptionist", "nurse", "doctor"], goods_received: ["store_keeper", "pharmacist"],
   leave_letter: ["hr_manager"], salary_slip: ["hr_manager", "accountant"], patient_summary: ["records_officer", "doctor", "nurse", "receptionist"],
-  expense_voucher: ["accountant"],
+  expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist"],
 };
 
 const when = (r) => fmtStamp(r.created_at);
@@ -54,4 +55,22 @@ export const DOCS = {
   expense_voucher: (r) => ({ type: "expense_voucher", id: r.id, ref: `EXP ${String(r.id).padStart(5, "0")}`, title: "Expense voucher",
     meta: [["Date", r.expense_date || when(r)], ["Category", r.category], ["Recorded by", r.recorded_by], ["Paid from", r.paid_from_wallet ? "Clinic wallet" : "Outside the wallet"]],
     sections: [{ heading: "Description", text: r.description }, { rows: [["Amount", money(r.amount)]] }] }),
+  case_file: (d) => {
+    const c = d.case, p = d.patient, t = d.totals;
+    return { type: "case_file", id: c.id, ref: c.case_no, title: "Patient case file",
+      ready: ["awaiting_payment", "completed"].includes(c.stage), readyNote: "The case file can be stamped once the pharmacy has generated the bill.",
+      meta: [["Patient", p.full_name], ["Patient no.", p.patient_no], ["Doctor", c.doctor_name], ["Opened", fmtStamp(c.created_at)], ["Stage", label(c.stage)], ["Closed", c.closed_at ? fmtStamp(c.closed_at) : "-"]],
+      sections: [
+        { heading: "Patient information", rows: [["Gender", p.gender], ["Date of birth", p.date_of_birth], ["Phone", p.phone], ["Address", p.address], ["Blood group", p.blood_group], ["Allergies", p.allergies],
+          ["Next of kin", [p.next_of_kin, p.next_of_kin_phone].filter(Boolean).join(" · ")]] },
+        { heading: `Consultation by Dr ${c.doctor_name}`, rows: [["Temperature", c.temperature], ["Blood pressure", c.blood_pressure], ["Pulse", c.pulse], ["Weight", c.weight]] },
+        { heading: "Complaints", text: c.complaints }, { heading: "Diagnosis", text: c.diagnosis }, { heading: "Treatment notes", text: c.treatment_notes },
+        d.labs.length ? { heading: "Laboratory", table: { cols: ["Test", "Result", "Status"], rows: d.labs.map((l) => [l.test_name, l.result, label(l.status)]) } } : null,
+        d.prescriptions.length ? { heading: "Prescribed drugs", table: { cols: ["Drug", "Dosage", "Duration", "Qty", "Status"], rows: d.prescriptions.map((r) => [r.drug, r.dosage, r.duration, r.quantity, label(r.status)]) } } : null,
+        { heading: "Bill", table: { cols: ["Item", "Qty", "Unit price", "Amount"], rows: d.charges.map((x) => [x.description, x.quantity, ugx(x.unit_price), ugx(x.amount)]) } },
+        { rows: [["Consultation and registration", ugx(t.registration + t.consultation)], ["Laboratory", ugx(t.lab)], ["Drugs", ugx(t.drug + t.other)], ["Total", ugx(t.total)], ["Paid", ugx(t.paid)], ["Balance", ugx(t.balance)]] },
+        d.payments.length ? { heading: "Payments received", table: { cols: ["Receipt", "Date", "Method", "Amount", "Received by"], rows: d.payments.map((x) => [x.receipt_no, fmtStamp(x.created_at), label(x.method), ugx(x.amount), x.received_by]) } } : null,
+        { heading: "Who handled this case", table: { cols: ["When", "Staff", "Step"], rows: d.events.map((e) => [fmtStamp(e.created_at), `${e.user_name} (${e.role_label})`, `${EVENT_LABEL[e.kind] || e.kind}${e.details ? ": " + e.details : ""}`]) } },
+      ].filter(Boolean) };
+  },
 };

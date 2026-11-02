@@ -17,6 +17,15 @@
   2. **Airtel:** register at developers.airtel.africa for a client id and secret (test server first, then production).
   3. Collected money lands in *your* merchant account with the provider. The wallet in the app is a record of each clinic's balance; paying clinics out is a separate arrangement.
 
+## Class B patient journey (cases)
+Class B clinics run each patient through one **case**, from the doctor's desk to the final bill:
+1. **Doctor, Patient desk:** *Receive a patient* (pick an existing patient or register a new one), record the consultation (vitals, complaints, diagnosis, treatment), then send the patient **to the lab** (choose tests) and/or **to the pharmacy** (prescribe drugs, or send with no drugs for billing).
+2. **Lab technician, Lab queue:** starts and completes the tests, entering results. When every test is completed the case returns to the doctor, who reads the results and prescribes or forwards.
+3. **Pharmacist, Pharmacy desk:** sells the prescribed drugs (quantity and price recorded per drug, stock reduced when the item exists), adds any extra items, then **generates one bill** that sums the consultation fee, lab fees and drug fees, and receives the payment into the clinic wallet.
+4. **One document:** the *case file* holds everything from the patient's details to the final result and payment, and can be printed and stamped (doctor and pharmacist).
+5. **Clinic admin, Case tracking:** every case with its current stage and, for each step, who did it and when, plus the money. Every step also appears in the admin's Alerts. Nurses can view cases.
+Fees come from the **Price list** (registration, consultation, each lab test, each drug); the pharmacist can change a drug's price at the time of sale. The case workflow exists for Class B only.
+
 ## Digital clinic stamp
 - The **clinic admin** opens **Clinic stamp**, uploads a photo of the real stamp, and the app turns it into a clean, transparent digital stamp in the browser (adjustable ink detail and colour, rotate if the photo is sideways).
 - Every role can open **Print and stamp** (stamp icon) on the documents it works with: invoices, receipts, prescriptions, consultation records, lab and imaging reports, appointment slips, stock records, leave letters, salary slips, patient summaries and expense vouchers. Which role may stamp which document is listed in `backend/app/routers/stamps.py`.

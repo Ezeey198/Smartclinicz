@@ -14,6 +14,7 @@ import Reports from "./Reports";
 import Leave from "./Leave";
 import PatientFiles from "./PatientFiles";
 import Wallet from "./Wallet";
+import Cases from "./Cases";
 import Subscription from "./Subscription";
 import ClinicStamp from "./Stamp";
 import Activity from "./Activity";
@@ -25,6 +26,7 @@ import Account from "../shared/Account";
 export default {
   nav: [
     { to: "/app", label: "Dashboard", icon: "LayoutDashboard", end: true },
+    { to: "/app/cases", label: "Case tracking", icon: "Route", module: "cases" },
     { to: "/app/patients", label: "Patients", icon: "Users", module: "patients" },
     { to: "/app/appointments", label: "Appointments", icon: "CalendarDays", module: "appointments" },
     { to: "/app/consultations", label: "Consultations", icon: "Stethoscope", module: "visits" },
@@ -48,7 +50,7 @@ export default {
     { to: "/app/account", label: "My account", icon: "CircleUser" },
   ],
   routes: [
-    { index: true, element: <Dashboard /> }, { path: "patients", element: <Patients /> }, { path: "appointments", element: <Appointments /> },
+    { index: true, element: <Dashboard /> }, { path: "cases", element: <Cases /> }, { path: "patients", element: <Patients /> }, { path: "appointments", element: <Appointments /> },
     { path: "consultations", element: <Consultations /> }, { path: "lab", element: <Laboratory /> }, { path: "pharmacy", element: <Pharmacy /> },
     { path: "stock", element: <Stock /> }, { path: "imaging", element: <Imaging /> }, { path: "billing", element: <Billing /> },
     { path: "expenses", element: <Expenses /> }, { path: "reports", element: <Reports /> }, { path: "leave", element: <Leave /> }, { path: "payroll", element: <Payroll /> }, { path: "prices", element: <Prices /> },

@@ -65,9 +65,10 @@ export const labFields = [
 export const labRequestFields = by(labFields, ["patient_id", "test_name", "notes"]);
 export const labColumns = [
   { key: "created_at", label: "Requested", type: "date" }, { key: "patient_name", label: "Patient", strong: true },
+  { key: "case_no", label: "Case", render: (r) => (r.case_no ? <b>{r.case_no}</b> : <span className="sub">Walk-in</span>) },
   { key: "test_name", label: "Test" }, { key: "requested_by", label: "Requested by" }, payCol, { key: "status", label: "Status", pill: true },
 ];
-export const labResultColumns = [...labColumns.slice(0, 3), { key: "result", label: "Result" }, payCol, { key: "status", label: "Status", pill: true }];
+export const labResultColumns = [...labColumns.slice(0, 4), { key: "result", label: "Result" }, payCol, { key: "status", label: "Status", pill: true }];
 
 export const RX_STATUS = ["pending", "dispensed", "cancelled"];
 export const rxFields = [
