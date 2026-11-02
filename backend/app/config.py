@@ -30,8 +30,8 @@ class Settings:
     TOKEN_HOURS = int(os.getenv("TOKEN_HOURS", "12"))
     INVITE_DAYS = int(os.getenv("INVITE_DAYS", "7"))
     SUBSCRIPTION_PRICE = float(os.getenv("SUBSCRIPTION_PRICE", "1000"))   # UGX per period
-    SUBSCRIPTION_HOURS = int(os.getenv("SUBSCRIPTION_HOURS", "24"))       # length of one paid period
-    TRIAL_HOURS = float(os.getenv("TRIAL_HOURS", "2"))                    # free time after a clinic is approved
+    SUBSCRIPTION_HOURS = int(os.getenv("SUBSCRIPTION_HOURS", "72"))       # length of one paid period
+    TRIAL_HOURS = float(os.getenv("TRIAL_HOURS", "72"))                    # free time after a clinic is approved
     PAYMENT_MODE = os.getenv("PAYMENT_MODE", "simulated")                 # simulated | live
     PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", "").rstrip("/")          # https address of this API, lets providers call back
     PHONE_COUNTRY_CODE = os.getenv("PHONE_COUNTRY_CODE", "256")
