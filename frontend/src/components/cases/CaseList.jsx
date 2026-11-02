@@ -9,7 +9,8 @@ export default function CaseList({ title, sub, tabs, onOpen, actions, reloadKey 
   const [tab, setTab] = useState(tabs[0].key);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
-  useEffect(() => { api.get("/cases").then((r) => setRows(r.data)).catch((e) => setErr(errMsg(e))); }, [reloadKey]);
+  const load = () => api.get("/cases").then((r) => setRows(r.data)).catch((e) => setErr(errMsg(e)));
+  useEffect(() => { load(); const id = setInterval(load, 15000); return () => clearInterval(id); }, [reloadKey]);   // stays up to date by itself
   if (err) return <Notice tone="error">{err}</Notice>;
   if (!rows) return <Spinner />;
   const cur = tabs.find((t) => t.key === tab);

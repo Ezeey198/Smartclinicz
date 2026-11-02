@@ -47,6 +47,19 @@ def _charge(db, enc, user, kind, desc, qty, unit, ref=None):
     return c
 
 
+def _sync_lab(db, enc):
+    """If every lab test of a case at the lab is completed, hand the case back to the doctor (self-healing)."""
+    if enc.stage != "at_lab":
+        return False
+    labs = db.query(LabOrder).filter(LabOrder.encounter_id == enc.id).all()
+    if labs and all(x.status == "completed" for x in labs):
+        enc.stage = "back_to_doctor"
+        db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=None, user_name="System", role="system", kind="returned_to_doctor",
+                         details="All lab results are ready for the doctor"))
+        return True
+    return False
+
+
 def _totals(charges, inv):
     t = {k: 0.0 for k in KINDS}
     for c in charges:
@@ -77,6 +90,8 @@ def list_cases(user=Depends(read), db: Session = Depends(get_db)):
     encs = db.query(Encounter).filter(Encounter.clinic_id == user.clinic_id).order_by(Encounter.id.desc()).limit(500).all()
     if not encs:
         return []
+    if any(_sync_lab(db, e) for e in encs):
+        db.commit()
     ids = [e.id for e in encs]
     names = {p.id: p.full_name for p in db.query(Patient).filter(Patient.clinic_id == user.clinic_id)}
     sums = dict(db.query(CaseCharge.encounter_id, func.coalesce(func.sum(CaseCharge.amount), 0)).filter(CaseCharge.encounter_id.in_(ids)).group_by(CaseCharge.encounter_id).all())
@@ -97,7 +112,10 @@ def list_cases(user=Depends(read), db: Session = Depends(get_db)):
 
 @router.get("/{cid}")
 def get_case(cid: int, user=Depends(read), db: Session = Depends(get_db)):
-    return _detail(db, _get(db, user, cid))
+    enc = _get(db, user, cid)
+    if _sync_lab(db, enc):
+        db.commit()
+    return _detail(db, enc)
 
 
 class OpenIn(BaseModel):

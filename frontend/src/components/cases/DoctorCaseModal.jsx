@@ -1,7 +1,7 @@
 // The doctor's workspace for one case: consultation notes, then send the patient to the lab and/or the pharmacy.
 import { useEffect, useState } from "react";
 import api, { errMsg } from "../../api";
-import { Input, Modal, Notice, Spinner } from "../ui";
+import { Input, Modal, Notice, Pill, Spinner } from "../ui";
 import CaseDetail from "./CaseDetail";
 
 const FIELDS = ["temperature", "blood_pressure", "pulse", "weight", "complaints", "diagnosis", "treatment_notes"];
@@ -16,6 +16,11 @@ export default function DoctorCaseModal({ caseId, onClose }) {
   const [busy, setBusy] = useState(false);
   const load = () => api.get(`/cases/${caseId}`).then((r) => { setD(r.data); setN(Object.fromEntries(FIELDS.map((k) => [k, r.data.case[k] || ""]))); });
   useEffect(() => { load(); api.get("/prices").then((r) => setPrices(r.data)).catch(() => {}); }, [caseId]);
+  useEffect(() => {   // while the patient is at the lab, pick up the results as soon as they are done
+    if (!d || d.case.stage !== "at_lab") return undefined;
+    const id = setInterval(() => api.get(`/cases/${caseId}`).then((r) => setD(r.data)).catch(() => {}), 8000);
+    return () => clearInterval(id);
+  }, [d?.case.stage, caseId]);
   if (!d) return <Modal title="Case" onClose={onClose} wide><Spinner /></Modal>;
 
   const mine = ["with_doctor", "back_to_doctor"].includes(d.case.stage);
@@ -34,6 +39,15 @@ export default function DoctorCaseModal({ caseId, onClose }) {
       {d.case.stage === "back_to_doctor" && <Notice tone="success">The lab has finished. Read the results below, then prescribe or send the patient on.</Notice>}
       {d.case.stage === "at_lab" && <Notice>The patient is at the lab. This case returns to you when every test is completed.</Notice>}
       {d.case.stage === "at_pharmacy" && <Notice>The patient is with the pharmacist.</Notice>}
+
+      {d.labs.length > 0 && (
+        <div className="panel pad results" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 10 }}>Lab results {d.labs.every((l) => l.status === "completed") ? <Pill tone="green">All ready</Pill> : <Pill tone="amber">Some still waiting</Pill>}</h3>
+          <table className="table"><thead><tr><th>Test</th><th>Result</th><th>Status</th></tr></thead>
+            <tbody>{d.labs.map((l) => <tr key={l.id}><td><b>{l.test_name}</b></td><td>{l.result || <span className="sub">Not entered yet</span>}</td><td><Pill value={l.status} /></td></tr>)}</tbody></table>
+          {mine && <p className="hint" style={{ marginBottom: 0 }}>Use these results to prescribe below, or send the patient to the pharmacy.</p>}
+        </div>
+      )}
 
       {mine && (
         <div className="panel pad" style={{ marginBottom: 16 }}>
