@@ -2,36 +2,63 @@ import axios from "axios";
 import { store } from "./storage";
 
 export const TOKEN_KEY = "clinicpro_token";
-const api = axios.create({ baseURL: "/api" });
 
-api.interceptors.request.use((c) => {
-  const t = store.get(TOKEN_KEY);
-  if (t) c.headers.Authorization = `Bearer ${t}`;
-  return c;
+const API_URL = "https://smartclinicz.vercel.app";
+
+const api = axios.create({
+  baseURL: `${API_URL}/api`,
+});
+
+api.interceptors.request.use((config) => {
+  const token = store.get(TOKEN_KEY);
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
 });
 
 api.interceptors.response.use(
-  (r) => r,
-  (e) => {
-    const url = e.config?.url || "";
-    if (e.response?.status === 401 && store.get(TOKEN_KEY) && !url.includes("/auth/login")) {
+  (response) => response,
+  (error) => {
+    const url = error.config?.url || "";
+
+    if (
+      error.response?.status === 401 &&
+      store.get(TOKEN_KEY) &&
+      !url.includes("/auth/login")
+    ) {
       store.del(TOKEN_KEY);
       window.location.href = "/login";
     }
-    if (e.response?.status === 403 && String(e.response?.data?.detail || "").includes("deactivated by the system administrator") && store.get(TOKEN_KEY)) {
-      store.del(TOKEN_KEY);
-      window.location.assign("/login");
+
+    if (error.response?.status === 402 && store.get(TOKEN_KEY)) {
+      window.location.assign("/app");
     }
-    if (e.response?.status === 402 && store.get(TOKEN_KEY)) window.location.assign("/app");
-    return Promise.reject(e);
+
+    return Promise.reject(error);
   }
 );
 
-export const errMsg = (e) => {
-  const d = e.response?.data?.detail;
-  if (!d) return e.message || "Something went wrong. Try again.";
-  if (typeof d === "string") return d;
-  if (Array.isArray(d)) return d.map((x) => `${String(x.loc?.slice(-1)[0] || "").replace(/_/g, " ")}: ${x.msg}`).join(". ");
+export const errMsg = (error) => {
+  const detail = error.response?.data?.detail;
+
+  if (!detail) {
+    return error.message || "Something went wrong. Try again.";
+  }
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        const field = String(item.loc?.slice(-1)[0] || "").replace(/_/g, " ");
+        return `${field}: ${item.msg}`;
+      })
+      .join(". ");
+  }
+
   return "Something went wrong. Try again.";
 };
 
