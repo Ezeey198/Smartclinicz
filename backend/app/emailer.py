@@ -4,7 +4,7 @@ from email.message import EmailMessage
 from sqlalchemy.orm import Session
 from .config import settings
 from .models import EmailOutbox, Clinic, User
-from .roles import ROLE_LABELS, CLASS_NAMES
+from .roles import CLASS_NAMES, label_for
 
 
 def smtp_configured() -> bool:
@@ -60,12 +60,13 @@ def deliver(db: Session, to: str, subject: str, title: str, lines: list[str], bu
 
 def send_clinic_approval(db: Session, clinic: Clinic, admin: User) -> dict:
     link = f"{settings.FRONTEND_URL}/approve-clinic?token={clinic.approval_token}"
-    return deliver(db, admin.email, f"Approve your clinic: {clinic.name}", "Approve your clinic",
+    noun = "pharmacy" if clinic.clinic_class == "P" else "clinic"
+    return deliver(db, admin.email, f"Approve your {noun}: {clinic.name}", f"Approve your {noun}",
                    [f"Hello {admin.full_name},",
                     f"<b>{clinic.name}</b> has been registered on ClinicPro as <b>{CLASS_NAMES[clinic.clinic_class]}</b>.",
-                    f"Your clinic code is <b>{clinic.code}</b>. You will need it every time you sign in.",
-                    "Review the details and approve the clinic to switch it on."],
-                   "Approve clinic", link)
+                    f"Your {noun} code is <b>{clinic.code}</b>. Keep it safe.",
+                    f"Review the details and approve the {noun} to switch it on."],
+                   f"Approve {noun}", link)
 
 
 def send_account_activation(db: Session, user: User, clinic: Clinic) -> dict:
@@ -75,7 +76,7 @@ def send_account_activation(db: Session, user: User, clinic: Clinic) -> dict:
                    "Set a new password" if reset else f"Activate your account at {clinic.name}",
                    "Set a new password" if reset else "Activate your account",
                    [f"Hello {user.full_name},",
-                    f"Your role at <b>{clinic.name}</b>: <b>{ROLE_LABELS.get(user.role, user.role)}</b>.",
-                    f"Clinic code: <b>{clinic.code}</b> (keep it, you sign in with it).",
+                    f"Your role at <b>{clinic.name}</b>: <b>{label_for(user.role, clinic.clinic_class)}</b>.",
+                    f"Code: <b>{clinic.code}</b> (keep it).",
                     "Choose a password to " + ("regain access." if reset else "activate your account. Your account stays inactive until you do.")],
                    "Set password" if reset else "Activate account", link)

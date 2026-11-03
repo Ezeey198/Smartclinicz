@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from ..activity import log
 from ..database import get_db
 from ..deps import module_guard
-from ..models import (Appointment, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Prescription,
-                      SalaryPayment, ServicePrice, User, Visit)
+from ..models import (Appointment, CaseEvent, Encounter, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Prescription,
+                      SalaryPayment, SaleLine, ServicePrice, StockBatch, Supplier, Product, User, Visit)
 from ..pricing import charger, pay_gate
 from ..wallet import wallet_post
 
@@ -21,7 +21,7 @@ def ser(obj) -> dict:
     return out
 
 
-def make_router(module, model, fields, required=(), author=None, number=None, hook=None, noun=None, after_create=None, gate=None):
+def make_router(module, model, fields, required=(), author=None, number=None, hook=None, noun=None, after_create=None, gate=None, after_update=None, before_delete=None):
     noun = noun or module
     r = APIRouter(prefix=f"/{module}", tags=[module])
     read, write = module_guard(module), module_guard(module, write=True)
@@ -60,9 +60,13 @@ def make_router(module, model, fields, required=(), author=None, number=None, ho
         snames = {u.id: u.full_name for u in db.query(User).filter(User.clinic_id == user.clinic_id, User.id.in_(sids))} if sids else {}
         iids = {x.invoice_id for x in rows if getattr(x, "invoice_id", None)}
         invs = {i.id: i for i in db.query(Invoice).filter(Invoice.clinic_id == user.clinic_id, Invoice.id.in_(iids))} if iids else {}
+        eids = {x.encounter_id for x in rows if getattr(x, "encounter_id", None)}
+        cases = {e.id: e.case_no for e in db.query(Encounter).filter(Encounter.clinic_id == user.clinic_id, Encounter.id.in_(eids))} if eids else {}
         res = []
         for x in rows:
             d = ser(x)
+            if d.get("encounter_id") in cases:
+                d["case_no"] = cases[d["encounter_id"]]
             if "patient_id" in d:
                 d["patient_name"] = names.get(d["patient_id"])
             if "staff_id" in d:
@@ -134,6 +138,8 @@ def make_router(module, model, fields, required=(), author=None, number=None, ho
             setattr(o, k, v)
         if hook:
             hook(o)
+        if after_update:
+            after_update(db, user, o, changes)
         if changes:
             pn = who(db, user, o)
             log(db, user, module, "updated", say(user, "updated", o, pn), {**({"patient": pn} if pn and not isinstance(o, Patient) else {}), **changes})
@@ -145,6 +151,8 @@ def make_router(module, model, fields, required=(), author=None, number=None, ho
         if user.role != "admin":
             raise HTTPException(403, "Only the clinic admin can delete records.")
         o = get_one(db, user, rid)
+        if before_delete:
+            before_delete(db, user, o)
         log(db, user, module, "deleted", say(user, "deleted", o, who(db, user, o)), ser(o))
         db.delete(o)
         db.commit()
@@ -178,6 +186,32 @@ def _no_edit(db, user, o, data):
     raise HTTPException(400, "Salary payments cannot be edited. Record a correction as a new payment.")
 
 
+def _lab_progress(db, user, o, changes):
+    """When the lab works on a test that belongs to a case, record it; when the last test is done the case goes back to the doctor."""
+    if not o.encounter_id or "status" not in changes:
+        return
+    enc = db.get(Encounter, o.encounter_id)
+    if not enc:
+        return
+    if o.status == "in_progress":
+        db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="lab_started", details=o.test_name))
+    elif o.status == "completed":
+        db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="lab_completed",
+                         details=f"{o.test_name}: {(o.result or 'no result entered')[:200]}"))
+        db.flush()
+        left = db.query(LabOrder).filter(LabOrder.encounter_id == enc.id, LabOrder.status != "completed").count()
+        if left == 0 and enc.stage == "at_lab":
+            enc.stage = "back_to_doctor"
+            db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="returned_to_doctor",
+                             details="All lab results are ready for the doctor"))
+
+
+def _product_delete(db, user, o):
+    if db.query(SaleLine).filter(SaleLine.product_id == o.id, SaleLine.clinic_id == user.clinic_id).count():
+        raise HTTPException(400, "This product has sales history, so it cannot be deleted.")
+    db.query(StockBatch).filter(StockBatch.product_id == o.id, StockBatch.clinic_id == user.clinic_id).delete()
+
+
 _none = lambda o: ""
 
 routers = [
@@ -197,7 +231,7 @@ routers = [
     make_router("lab", LabOrder,
                 {"patient_id": "int", "test_name": "str", "notes": "str", "result": "str", "status": "str"},
                 required=["patient_id", "test_name"], author="requested_by", noun="lab request",
-                after_create=charger("lab", lambda o: o.test_name, "Lab test"), gate=pay_gate({"in_progress", "completed"}, "test")),
+                after_create=charger("lab", lambda o: o.test_name, "Lab test"), gate=pay_gate({"in_progress", "completed"}, "test"), after_update=_lab_progress),
     make_router("pharmacy", Prescription,
                 {"patient_id": "int", "drug": "str", "dosage": "str", "duration": "str", "status": "str"},
                 required=["patient_id", "drug"], author="prescribed_by", noun="prescription",
@@ -222,4 +256,10 @@ routers = [
                 required=["category", "price"], noun="price"),
     make_router("payroll", SalaryPayment, {"staff_id": "int", "month": "str", "amount": "float", "note": "str"},
                 required=["staff_id", "month", "amount"], noun="salary payment", after_create=_pay_salary, gate=_no_edit),
+    make_router("products", Product,
+                {"name": "str", "generic_name": "str", "category": "str", "unit": "str", "sku": "str", "reorder_level": "float",
+                 "selling_price": "float", "prescription_required": "bool"},
+                required=["name", "selling_price"], noun="product", before_delete=_product_delete),
+    make_router("suppliers", Supplier, {"name": "str", "phone": "str", "email": "str", "address": "str", "notes": "str"},
+                required=["name"], noun="supplier"),
 ]

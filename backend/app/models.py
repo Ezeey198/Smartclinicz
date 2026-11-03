@@ -384,5 +384,110 @@ class CaseCharge(Base):
     created_at = Column(DateTime, default=now)
 
 
+class Product(Base):
+    __tablename__ = "products"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    name = Column(String(200), nullable=False)
+    generic_name = Column(String(200))
+    category = Column(String(80))
+    unit = Column(String(30))
+    sku = Column(String(60))
+    reorder_level = Column(Float)
+    selling_price = Column(Float, default=0)
+    prescription_required = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=now)
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    name = Column(String(200), nullable=False)
+    phone = Column(String(50))
+    email = Column(String(200))
+    address = Column(String(300))
+    notes = Column(String(300))
+    created_at = Column(DateTime, default=now)
+
+
+class StockBatch(Base):
+    """Stock is kept in batches so expiry dates are tracked and the oldest stock is sold first."""
+    __tablename__ = "stock_batches"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    product_id = Column(Integer, index=True)
+    batch_no = Column(String(60))
+    expiry_date = Column(String(10))
+    quantity = Column(Float, default=0)
+    cost_price = Column(Float, default=0)
+    supplier_id = Column(Integer)
+    purchase_id = Column(Integer)
+    created_at = Column(DateTime, default=now)
+
+
+class Purchase(Base):
+    __tablename__ = "purchases"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    ref_no = Column(String(30))
+    supplier_id = Column(Integer)
+    supplier_invoice = Column(String(60))
+    total_cost = Column(Float, default=0)
+    paid_from_wallet = Column(Boolean, default=False)
+    notes = Column(String(300))
+    received_by = Column(String(150))
+    created_at = Column(DateTime, default=now)
+
+
+class PurchaseLine(Base):
+    __tablename__ = "purchase_lines"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    purchase_id = Column(Integer, index=True)
+    product_id = Column(Integer)
+    product_name = Column(String(200))
+    batch_no = Column(String(60))
+    expiry_date = Column(String(10))
+    quantity = Column(Float)
+    unit_cost = Column(Float)
+
+
+class Sale(Base):
+    __tablename__ = "sales"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    receipt_no = Column(String(30))
+    customer_name = Column(String(150))
+    customer_phone = Column(String(50))
+    subtotal = Column(Float, default=0)
+    discount = Column(Float, default=0)
+    total = Column(Float, default=0)
+    payment_method = Column(String(20))
+    amount_paid = Column(Float, default=0)
+    change_given = Column(Float, default=0)
+    sold_by_id = Column(Integer, index=True)
+    sold_by = Column(String(150))
+    status = Column(String(20), default="completed")  # completed | voided
+    void_reason = Column(String(300))
+    voided_by = Column(String(150))
+    created_at = Column(DateTime, default=now)
+
+
+class SaleLine(Base):
+    __tablename__ = "sale_lines"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    sale_id = Column(Integer, index=True)
+    product_id = Column(Integer, index=True)
+    product_name = Column(String(200))
+    batch_id = Column(Integer)
+    quantity = Column(Float)
+    unit_price = Column(Float)
+    unit_cost = Column(Float)
+    line_total = Column(Float)
+
+
 CLINIC_DATA = [Patient, Appointment, Visit, LabOrder, Prescription, Invoice, InventoryItem, ImagingOrder, Expense, LeaveRequest, Payment,
-               ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse, Encounter, CaseEvent, CaseCharge]
+               ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse, Encounter, CaseEvent, CaseCharge,
+               Product, Supplier, StockBatch, Purchase, PurchaseLine, Sale, SaleLine]

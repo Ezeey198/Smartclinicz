@@ -10,9 +10,9 @@ from ..deps import clinic_admin_only, clinic_member
 from ..emailer import send_account_activation
 from sqlalchemy import func
 from ..roles import MONEY_ROLES
-from ..models import (Activity, Appointment, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Expense, Patient, Payment,
+from ..models import (Activity, Appointment, Encounter, Product, Sale, SaleLine, StockBatch, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Expense, Patient, Payment,
                       Prescription, User, Visit)
-from ..roles import CLASS_ROLES, ROLE_DESC, ROLE_LABELS, module_level
+from ..roles import CLASS_ROLES, ROLE_LABELS, desc_for, label_for, module_level
 from ..security import new_link_token
 
 router = APIRouter(prefix="/clinic", tags=["clinic"])
@@ -45,7 +45,8 @@ def update_profile(payload: dict = Body(...), user: User = Depends(clinic_admin_
 
 @router.get("/roles")
 def roles(user: User = Depends(clinic_member)):
-    return [{"value": r, "label": ROLE_LABELS[r], "description": ROLE_DESC[r]} for r in CLASS_ROLES[user.clinic.clinic_class]]
+    cls = user.clinic.clinic_class
+    return [{"value": r, "label": label_for(r, cls), "description": desc_for(r, cls)} for r in CLASS_ROLES[cls]]
 
 
 @router.get("/staff")
@@ -59,7 +60,7 @@ def staff(role: str | None = None, user: User = Depends(clinic_member), db: Sess
 def _urow(u: User):
     state = "active" if u.is_active else ("pending" if not u.password_hash else "inactive")
     return {"id": u.id, "full_name": u.full_name, "email": u.email, "phone": u.phone, "role": u.role,
-            "role_label": ROLE_LABELS.get(u.role, u.role), "state": state,
+            "role_label": label_for(u.role, u.clinic.clinic_class), "state": state,
             "created_at": u.created_at.isoformat() if u.created_at else None}
 
 
@@ -97,7 +98,7 @@ def create_user(body: UserIn, admin: User = Depends(clinic_admin_only), db: Sess
              is_active=False, activation_token=new_link_token(),
              token_expires=datetime.utcnow() + timedelta(days=settings.INVITE_DAYS))
     db.add(u)
-    log(db, admin, "staff", "created", f"{admin.full_name} added {u.full_name} as {ROLE_LABELS[body.role]}", {"email": email, "role": body.role})
+    log(db, admin, "staff", "created", f"{admin.full_name} added {u.full_name} as {label_for(body.role, admin.clinic.clinic_class)}", {"email": email, "role": body.role})
     db.commit()
     mail = send_account_activation(db, u, admin.clinic)
     return {**_urow(u), "email": mail}
@@ -163,6 +164,8 @@ def dashboard(user: User = Depends(clinic_member), db: Session = Depends(get_db)
     count = lambda model, *f: db.query(model).filter(model.clinic_id == cid, *f).count()
     total = lambda col, model, *f: float(db.query(func.coalesce(func.sum(col), 0)).filter(model.clinic_id == cid, *f).scalar() or 0)
     out = {}
+    if cls == "P":
+        return _pharmacy_dashboard(db, user, start)
     if can("patients"):
         out["patients"] = count(Patient)
     if can("appointments"):
@@ -206,10 +209,51 @@ def dashboard(user: User = Depends(clinic_member), db: Session = Depends(get_db)
         out["alerts"] = count(Activity, Activity.id > (user.last_seen_activity_id or 0), Activity.user_id != user.id)
     if can("accounts") and user.role in ("admin", "accountant"):
         out["expenses_total"] = total(Expense.amount, Expense)
+    if can("cases"):
+        stage = lambda s: count(Encounter, Encounter.stage == s)
+        out["cases_with_doctor"], out["cases_back"], out["cases_lab"] = stage("with_doctor"), stage("back_to_doctor"), stage("at_lab")
+        out["cases_pharmacy"], out["cases_unpaid"] = stage("at_pharmacy"), stage("awaiting_payment")
+        out["cases_done_today"] = count(Encounter, Encounter.stage == "completed", Encounter.closed_at >= start)
     if can("hr"):
         out["leave_pending"] = count(LeaveRequest, LeaveRequest.status == "pending")
         out["on_leave"] = count(LeaveRequest, LeaveRequest.status == "approved", LeaveRequest.start_date <= today, LeaveRequest.end_date >= today)
     if user.role in ("admin", "hr_manager"):
         out["staff"] = count(User)
         out["staff_pending"] = count(User, User.is_active.is_(False))
+    return out
+
+
+def _pharmacy_dashboard(db, user, start):
+    cid, admin = user.clinic_id, user.role == "admin"
+    today = start.strftime("%Y-%m-%d")
+    soon = (start + timedelta(days=90)).strftime("%Y-%m-%d")
+    q = db.query(Sale).filter(Sale.clinic_id == cid, Sale.status == "completed", Sale.created_at >= start)
+    if not admin:
+        q = q.filter(Sale.sold_by_id == user.id)
+    sales = q.all()
+    out = {"sales_today": len(sales), "revenue_today": sum(s.total or 0 for s in sales)}
+    if not admin:
+        ids = [s.id for s in sales] or [0]
+        out["items_today"] = float(db.query(func.coalesce(func.sum(SaleLine.quantity), 0)).filter(SaleLine.sale_id.in_(ids)).scalar() or 0)
+    else:
+        month = db.query(Sale).filter(Sale.clinic_id == cid, Sale.status == "completed", Sale.created_at >= start.replace(day=1)).all()
+        out["revenue_month"] = sum(s.total or 0 for s in month)
+        out["staff"] = db.query(User).filter(User.clinic_id == cid).count()
+        out["wallet_balance"] = user.clinic.wallet_balance or 0
+        out["alerts"] = db.query(Activity).filter(Activity.clinic_id == cid, Activity.id > (user.last_seen_activity_id or 0), Activity.user_id != user.id).count()
+    products = db.query(Product).filter(Product.clinic_id == cid).all()
+    totals, expired, expiring, value = {}, 0, 0, 0.0
+    for b in db.query(StockBatch).filter(StockBatch.clinic_id == cid, StockBatch.quantity > 0):
+        value += (b.quantity or 0) * (b.cost_price or 0)
+        if b.expiry_date and b.expiry_date < today:
+            expired += 1
+        else:
+            totals[b.product_id] = totals.get(b.product_id, 0) + b.quantity
+            if b.expiry_date and b.expiry_date <= soon:
+                expiring += 1
+    low = [p for p in products if p.reorder_level is not None and totals.get(p.id, 0) <= p.reorder_level]
+    out.update({"products": len(products), "low_stock": len(low), "expiring_soon": expiring, "expired_batches": expired,
+                "low_list": [{"id": p.id, "name": p.name, "quantity": totals.get(p.id, 0), "unit": p.unit, "reorder_level": p.reorder_level} for p in low[:8]]})
+    if admin:
+        out["stock_value"] = value
     return out

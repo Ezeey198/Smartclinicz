@@ -1,5 +1,16 @@
 # ClinicPro - clinic management system (React + FastAPI)
 
+## One sign-in, clinics and pharmacies
+- **Everyone signs in on the same page** with email and password: the superadmin, clinic admins, pharmacy admins and all staff. The account is found by its email, so **no code is needed**. Only if the same email and password exist in more than one clinic or pharmacy are you asked to choose where to sign in.
+- The superadmin now registers **either a clinic (Class A or B) or a pharmacy**, each with its own admin. Every one gets its own unique code (`CLA-…`, `CLB-…`, `PH-…`), the same approval emails, the free trial then UGX 1,000 per day subscription, wallet and alerts.
+
+## The pharmacy system
+A pharmacy has two roles: the **pharmacy admin** and the **pharmacy seller** (the admin adds sellers under Staff).
+- **Seller:** *Sell* (point of sale: search or scan a barcode, build the sale, discount, cash/mobile money/card, change due, receipt), *My sales*, *Products* (prices and stock), *My wallet*.
+- **Admin:** everything the seller does, plus *Sales* (all sales, cancel a sale to restore stock and reverse the money), *Products* (add products, add stock, batches, correct counts), *Expiry* (expired and expiring stock, write-offs), *Suppliers*, *Purchases* (receive stock, optionally pay the supplier from the wallet), *Reports* (sales, cost, gross profit, top products, by seller, by payment method), *Expenses*, *Alerts* (every action by every user with details), *Staff*, *Subscription*, *Pharmacy stamp*, *Settings*, *Wallet*.
+- Stock is kept in **batches with expiry dates**. A sale always takes the oldest batch that has not expired, records the cost for profit reporting, and cannot sell expired or missing stock. Medicines marked *needs a prescription* require the seller to confirm they saw one. Only the admin can change a price at the till.
+- Sales are paid into the pharmacy wallet (with who took the money); sale receipts can be printed and stamped.
+
 ## How it works
 1. **Superadmin** signs in (no clinic code), registers a clinic with its full details, chooses **Class A** or **Class B** and enters the clinic admin's details.
 2. The clinic and its admin account are created **inactive**, with a generated **clinic code** (e.g. `CLA-7K3MQ`). The admin receives **two emails**: *approve clinic* and *activate account* (set password).

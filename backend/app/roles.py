@@ -6,16 +6,19 @@ ROLE_LABELS = {
     "receptionist": "Receptionist", "cashier": "Cashier", "accountant": "Accountant",
     "radiologist": "Radiologist", "records_officer": "Records officer",
     "store_keeper": "Store keeper", "hr_manager": "HR manager",
+    "pharmacy_seller": "Pharmacy seller",
 }
 
 # Class B: essential clinic. Class A: full role system.
 CLASS_ROLES = {
     "B": ["admin", "doctor", "nurse", "lab_technician", "pharmacist"],
-    "A": list(ROLE_LABELS.keys()),
+    "A": [k for k in ROLE_LABELS if k != "pharmacy_seller"],
+    "P": ["admin", "pharmacy_seller"],   # a pharmacy: its admin and its sellers
 }
 _B = ["patients", "appointments", "visits", "lab", "pharmacy", "inventory", "billing", "prices", "accounts"]
 CLASS_MODULES = {"B": _B + ["cases"], "A": _B + ["imaging", "hr", "payroll"]}
-CLASS_NAMES = {"A": "Class A - full service", "B": "Class B - essential"}
+CLASS_MODULES["P"] = ["products", "suppliers", "purchases", "sales", "accounts"]
+CLASS_NAMES = {"A": "Class A - full service", "B": "Class B - essential", "P": "Pharmacy"}
 
 ROLE_DESC = {
     "admin": "Full control of the clinic: staff, prices, wallet, subscription and every module.",
@@ -30,7 +33,19 @@ ROLE_DESC = {
     "records_officer": "Maintains patient records and patient files.",
     "store_keeper": "Manages stock, receives supplies and pays for them from the wallet.",
     "hr_manager": "Staff directory, leave requests and salary payments.",
+    "pharmacy_seller": "Sells medicines at the counter, takes payment and prints receipts.",
 }
+ADMIN_LABEL = {"P": "Pharmacy admin"}
+ADMIN_DESC = {"P": "Full control of the pharmacy: products, stock, suppliers, purchases, sales, reports, staff, wallet and subscription."}
+
+
+def label_for(role, clinic_class):
+    """The admin of a pharmacy is called Pharmacy admin; everything else keeps its normal label."""
+    return ADMIN_LABEL.get(clinic_class, ROLE_LABELS["admin"]) if role == "admin" else ROLE_LABELS.get(role, role)
+
+
+def desc_for(role, clinic_class):
+    return ADMIN_DESC.get(clinic_class, ROLE_DESC["admin"]) if role == "admin" else ROLE_DESC.get(role, "")
 
 PATIENT_FILE_ROLES = ["admin", "doctor", "nurse", "records_officer"]
 MONEY_ROLES = ["admin", "accountant", "cashier", "pharmacist"]     # can see the clinic wallet balance
@@ -55,6 +70,11 @@ MODULE_ACCESS = {
                                                   "lab_technician", "radiologist", "pharmacist"]},
     "payroll": {"write": ["hr_manager"], "read": ["accountant"]},
     "cases": {"write": ["doctor", "pharmacist"], "read": ["nurse", "lab_technician"]},   # Class B patient journey
+    # pharmacies (class P)
+    "products": {"write": [], "read": ["pharmacy_seller"]},
+    "suppliers": {"write": [], "read": []},
+    "purchases": {"write": [], "read": []},
+    "sales": {"write": ["pharmacy_seller"], "read": []},
 }
 
 

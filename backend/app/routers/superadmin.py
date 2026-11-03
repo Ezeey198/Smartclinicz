@@ -23,7 +23,7 @@ EDITABLE = ["name", "registration_number", "license_number", "email", "phone", "
 
 class ClinicIn(BaseModel):
     name: str = Field(min_length=2)
-    clinic_class: Literal["A", "B"]
+    clinic_class: Literal["A", "B", "P"]
     registration_number: str | None = None
     license_number: str | None = None
     email: EmailStr
@@ -45,7 +45,7 @@ ALPHABET = "".join(c for c in string.ascii_uppercase if c not in "OI") + "234567
 def _code(db: Session, cls: str) -> str:
     """A new, never-used clinic code such as CLA-7K3MQ2 (the letter after CL is the class)."""
     while True:
-        code = f"CL{cls}-" + "".join(secrets.choice(ALPHABET) for _ in range(6))
+        code = ("PH-" if cls == "P" else f"CL{cls}-") + "".join(secrets.choice(ALPHABET) for _ in range(6))
         if not db.query(Clinic).filter(Clinic.code == code).first():
             return code
 
@@ -70,6 +70,7 @@ def stats(db: Session = Depends(get_db)):
             "suspended": q.filter(Clinic.status == "suspended").count(),
             "class_a": q.filter(Clinic.clinic_class == "A").count(),
             "class_b": q.filter(Clinic.clinic_class == "B").count(),
+            "pharmacies": q.filter(Clinic.clinic_class == "P").count(),
             "users": db.query(User).filter(User.clinic_id.isnot(None)).count()}
 
 

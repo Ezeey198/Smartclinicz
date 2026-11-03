@@ -11,7 +11,7 @@ from ..activity import log
 from ..database import get_db
 from ..deps import clinic_admin_only, clinic_member
 from ..models import (Appointment, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Payment, Prescription,
-                      SalaryPayment, StampUse, Visit)
+                      SalaryPayment, StampUse, Visit, Encounter, Sale)
 from ..roles import ROLE_LABELS, module_level
 from ..subscriptions import iso
 
@@ -28,11 +28,14 @@ DOCS = {
     "leave_letter": (LeaveRequest, "hr", "leave letter", ("hr_manager",)),
     "salary_slip": (SalaryPayment, "payroll", "salary slip", ("hr_manager", "accountant")),
     "patient_summary": (Patient, "patients", "patient summary", ("records_officer", "doctor", "nurse", "receptionist")),
+    "case_file": (Encounter, "cases", "case file", ("doctor", "pharmacist")),
+    "sale_receipt": (Sale, "sales", "sale receipt", ("pharmacy_seller",)),
     "expense_voucher": (Expense, "accounts", "expense voucher", ("accountant",)),
 }
 READY = {  # a stamp means "approved", so some documents must be finished first
     "lab_report": ("status", "completed", "A lab report can be stamped once the test is completed."),
     "imaging_report": ("status", "reported", "An imaging report can be stamped once it has been reported."),
+    "case_file": ("stage", ["awaiting_payment", "completed"], "The case file can be stamped once the pharmacy has generated the bill."),
 }
 
 router = APIRouter(prefix="/stamps", tags=["stamps"])
@@ -111,7 +114,7 @@ def apply_stamp(body: ApplyIn, user=Depends(clinic_member), db: Session = Depend
         raise HTTPException(404, "Document not found.")
     if body.doc_type in READY:
         field, value, msg = READY[body.doc_type]
-        if getattr(rec, field) != value:
+        if getattr(rec, field) not in (value if isinstance(value, list) else [value]):
             raise HTTPException(400, msg)
     ref = (body.doc_ref or noun)[:80]
     use = StampUse(clinic_id=user.clinic_id, user_id=user.id, user_name=user.full_name, role=user.role, doc_type=body.doc_type,

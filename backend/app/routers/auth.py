@@ -6,7 +6,7 @@ from ..config import settings
 from ..database import get_db
 from ..deps import current_user
 from ..models import Clinic, User
-from ..roles import ROLE_LABELS, MODULE_ACCESS, module_level
+from ..roles import MODULE_ACCESS, ROLE_LABELS, label_for, module_level
 from ..subscriptions import is_expired, sub_state
 from ..security import create_token, hash_password, verify_password
 
@@ -19,39 +19,56 @@ def me_payload(user: User) -> dict:
         return {**base, "role": "superadmin", "role_label": "Superadmin", "is_superadmin": True}
     c = user.clinic
     modules = {m: lvl for m in MODULE_ACCESS if (lvl := module_level(c.clinic_class, user.role, m))}
-    return {**base, "role": user.role, "role_label": ROLE_LABELS.get(user.role, user.role), "is_superadmin": False,
+    return {**base, "role": user.role, "role_label": label_for(user.role, c.clinic_class), "is_superadmin": False,
             "clinic": {"id": c.id, "code": c.code, "name": c.name, "clinic_class": c.clinic_class, "status": c.status,
                        "subscription": sub_state(c)},
             "modules": modules}
 
 
 class LoginIn(BaseModel):
-    clinic_code: str | None = None
+    clinic_code: str | None = None   # only needed when the same email and password exist in more than one clinic or pharmacy
     email: str
     password: str
 
 
+def _problem(u: User):
+    """Why this account cannot be used right now, or None."""
+    if not u.is_active:
+        return "Your account is inactive. Ask your admin to reactivate it."
+    c = u.clinic
+    if c and c.status == "pending":
+        return "This clinic or pharmacy is not approved yet. Its admin must approve it from the email we sent."
+    if c and c.status == "suspended":
+        return "This clinic or pharmacy has been deactivated by the system administrator. Contact them to have it activated."
+    if c and c.status == "active" and u.role != "admin" and is_expired(c):
+        return "The subscription has ended. The admin must renew it before staff can sign in."
+    return None
+
+
 @router.post("/login")
 def login(body: LoginIn, db: Session = Depends(get_db)):
+    """Everybody signs in here with email and password: the superadmin, clinic and pharmacy admins, and all staff.
+    The account is found by its email, so no code is needed (a code only helps when one email exists in several places)."""
     email = body.email.strip().lower()
-    clinic = None
-    if body.clinic_code and body.clinic_code.strip():
-        clinic = db.query(Clinic).filter(Clinic.code == body.clinic_code.strip().upper()).first()
-        user = clinic and db.query(User).filter(User.clinic_id == clinic.id, User.email == email).first()
+    code = (body.clinic_code or "").strip().upper()
+    users = db.query(User).filter(User.email == email).all()
+    if code:
+        users = [u for u in users if u.is_superadmin or (u.clinic and u.clinic.code == code)]
+    hits = [u for u in users if verify_password(body.password, u.password_hash)]
+    if not hits:
+        if any(not u.password_hash for u in users):
+            raise HTTPException(403, "Your account is not active yet. Open the activation link we emailed you.")
+        raise HTTPException(401, "Wrong email or password.")
+    usable = [u for u in hits if not _problem(u)]
+    if not usable:
+        raise HTTPException(403, _problem(hits[0]))
+    sup = next((u for u in usable if u.is_superadmin), None)
+    if sup:
+        user = sup
+    elif len(usable) == 1:
+        user = usable[0]
     else:
-        user = db.query(User).filter(User.is_superadmin.is_(True), User.email == email).first()
-    if user and not user.password_hash:
-        raise HTTPException(403, "Your account is not active yet. Open the activation link we emailed you.")
-    if not user or not verify_password(body.password, user.password_hash):
-        raise HTTPException(401, "Wrong clinic code, email or password.")
-    if not user.is_active:
-        raise HTTPException(403, "Your account is inactive. Ask your clinic admin to reactivate it.")
-    if clinic and clinic.status == "pending":
-        raise HTTPException(403, "This clinic is not approved yet. The clinic admin must approve it from the email we sent.")
-    if clinic and clinic.status == "suspended":
-        raise HTTPException(403, "This clinic has been deactivated by the system administrator. Contact them to have it activated.")
-    if clinic and clinic.status == "active" and user.role != "admin" and is_expired(clinic):
-        raise HTTPException(403, "This clinic's subscription has ended. The clinic admin must renew it before staff can sign in.")
+        raise HTTPException(409, {"code": "choose_organisation", "choices": [{"code": u.clinic.code, "name": u.clinic.name} for u in usable]})
     return {"token": create_token(user.id), "user": me_payload(user)}
 
 
@@ -72,7 +89,7 @@ def preview(kind: str, token: str, db: Session = Depends(get_db)):
     u = db.query(User).filter(User.activation_token == token).first()
     if not u or (u.token_expires and u.token_expires < datetime.utcnow()):
         raise invalid
-    return {"full_name": u.full_name, "email": u.email, "role": ROLE_LABELS.get(u.role, u.role),
+    return {"full_name": u.full_name, "email": u.email, "role": label_for(u.role, u.clinic.clinic_class),
             "clinic_name": u.clinic.name, "clinic_code": u.clinic.code, "reset": bool(u.password_hash)}
 
 
