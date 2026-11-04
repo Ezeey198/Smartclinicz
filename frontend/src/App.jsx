@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
 import Shell from "./components/Shell";
 import { Spinner } from "./components/ui";
+import ServerBanner from "./components/ServerBanner";
 import Login from "./pages/Login";
 import { Activate, ApproveClinic } from "./pages/Links";
 
@@ -15,6 +16,8 @@ function Guard({ superadmin }) {
 
 export default function App() {
   return (
+    <>
+    <ServerBanner />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/activate" element={<Activate />} />
@@ -23,5 +26,6 @@ export default function App() {
       <Route path="/app/*" element={<Guard />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
+    </>
   );
 }

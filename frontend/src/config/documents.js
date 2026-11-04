@@ -7,7 +7,7 @@ export const STAMPERS = {
   prescription: ["doctor", "pharmacist"], consultation: ["doctor", "nurse"], lab_report: ["lab_technician", "doctor"],
   imaging_report: ["radiologist", "doctor"], appointment_slip: ["receptionist", "nurse", "doctor"], goods_received: ["store_keeper", "pharmacist"],
   leave_letter: ["hr_manager"], salary_slip: ["hr_manager", "accountant"], patient_summary: ["records_officer", "doctor", "nurse", "receptionist"],
-  expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist"],
+  expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist"], sale_receipt: ["pharmacy_seller"],
 };
 
 const when = (r) => fmtStamp(r.created_at);
@@ -73,4 +73,8 @@ export const DOCS = {
         { heading: "Who handled this case", table: { cols: ["When", "Staff", "Step"], rows: d.events.map((e) => [fmtStamp(e.created_at), `${e.user_name} (${e.role_label})`, `${EVENT_LABEL[e.kind] || e.kind}${e.details ? ": " + e.details : ""}`]) } },
       ].filter(Boolean) };
   },
+  sale_receipt: (s) => ({ type: "sale_receipt", id: s.id, ref: s.receipt_no, title: "Sales receipt", optionalStamp: true,
+    meta: [["Date", fmtStamp(s.created_at)], ["Customer", s.customer_name || "Walk-in customer"], ["Served by", s.sold_by], ["Payment", label(s.payment_method)], ["Status", s.status === "voided" ? "CANCELLED" : "Paid"]],
+    sections: [{ table: { cols: ["Item", "Qty", "Price", "Amount"], rows: s.lines.map((l) => [l.product_name, l.quantity, ugx(l.unit_price), ugx(l.line_total)]) } },
+      { rows: [["Subtotal", ugx(s.subtotal)], ...(s.discount ? [["Discount", ugx(s.discount)]] : []), ["Total", ugx(s.total)], ["Amount paid", ugx(s.amount_paid)], ["Change", ugx(s.change_given)]] }] }),
 };

@@ -1,8 +1,9 @@
 import DataPage from "../../components/DataPage";
+import { DOCS } from "../../config/documents";
 import { APPT_STATUS, apptColumns, apptFields } from "../../config/schemas";
 
 export default function Appointments() {
-  return <DataPage module="appointments" title="My appointments" single="appointment" empty="No appointments yet."
+  return <DataPage docBuilder={DOCS.appointment_slip} module="appointments" title="My appointments" single="appointment" empty="No appointments yet."
     sub="Patients booked to see you. Switch to Everyone for the whole clinic."
     columns={apptColumns} fields={apptFields} statuses={APPT_STATUS}
     tabs={[{ key: "mine", label: "Mine", filter: (r, u) => r.doctor_name === u.full_name }, { key: "all", label: "Everyone", filter: () => true }]}

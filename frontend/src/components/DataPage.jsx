@@ -1,10 +1,12 @@
 // The table-and-form engine. Every role page configures it with its own columns, fields, tabs and actions.
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Stamp as StampIcon, Trash2 } from "lucide-react";
 import api, { errMsg } from "../api";
 import { useAuth } from "../auth";
 import { Empty, Notice, PageHead, Pill, Spinner, fmtDate, fmtDateTime, label, money } from "./ui";
+import DocumentModal from "./DocumentModal";
 import FormModal from "./FormModal";
+import { STAMPERS } from "../config/documents";
 
 function cell(col, row) {
   if (col.render) return col.render(row);
@@ -18,7 +20,7 @@ function cell(col, row) {
 }
 
 export default function DataPage({ module, endpoint, title, sub, single, empty, columns, fields, tabs, statuses, canCreate = true,
-  readOnly = false, noEdit = false, createLabel, defaults, rowActions }) {
+  readOnly = false, noEdit = false, createLabel, defaults, rowActions, docBuilder }) {
   const { user } = useAuth();
   const level = user.modules?.[module];
   const canWrite = level === "write" && !readOnly;
@@ -29,6 +31,7 @@ export default function DataPage({ module, endpoint, title, sub, single, empty, 
   const [tab, setTab] = useState(tabs?.[0]?.key);
   const [edit, setEdit] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [doc, setDoc] = useState(null);
 
   const load = () => api.get(endpoint || `/${module}`).then((r) => setRows(r.data)).catch((e) => setMsg({ tone: "error", text: errMsg(e) }));
   useEffect(() => {
@@ -78,6 +81,8 @@ export default function DataPage({ module, endpoint, title, sub, single, empty, 
                 {columns.map((c) => <td key={c.key}>{cell(c, r)}</td>)}
                 <td className="row-actions">
                   {(rowActions?.(r, ctx) || []).filter(Boolean).map((a) => <button key={a.label} className={`btn sm ${a.tone || "ghost"}`} onClick={a.onClick}>{a.label}</button>)}
+                  {docBuilder && (user.role === "admin" || (STAMPERS[docBuilder(r).type] || []).includes(user.role)) && (
+                    <button className="icon-btn" title="Print and stamp" onClick={() => setDoc(docBuilder(r))}><StampIcon size={16} /></button>)}
                   {fields && <button className="icon-btn" title={canWrite && !noEdit ? "Edit" : "View"} onClick={() => setEdit(r)}>{canWrite && !noEdit ? <Pencil size={16} /> : <Eye size={16} />}</button>}
                   {user.role === "admin" && !readOnly && <button className="icon-btn danger" title="Delete"
                     onClick={() => window.confirm(`Delete this ${single}?`) && api.delete(`/${module}/${r.id}`).then(load).catch((e) => setMsg({ tone: "error", text: errMsg(e) }))}><Trash2 size={16} /></button>}
@@ -86,6 +91,7 @@ export default function DataPage({ module, endpoint, title, sub, single, empty, 
           </table></div>
         )}
       </div>
+      {doc && <DocumentModal doc={doc} onClose={() => setDoc(null)} />}
       {edit && fields && <FormModal module={module} single={single} fields={fields} defaults={defaults} row={edit} readOnly={!canWrite || (noEdit && !!edit.id)} lists={lists}
         onClose={() => setEdit(null)} onDone={() => { setEdit(null); setMsg({ tone: "success", text: "Saved." }); load(); }} />}
     </>

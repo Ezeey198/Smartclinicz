@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DataPage from "../../components/DataPage";
+import { DOCS } from "../../config/documents";
 import PayModal from "../../components/PayModal";
 import { invoiceColumns, invoiceRaiseFields } from "../../config/schemas";
 
@@ -8,7 +9,7 @@ export default function Invoices() {
   const [k, setK] = useState(0);
   return (
     <>
-      <DataPage key={k} module="billing" title="Invoices" single="invoice" createLabel="Walk-in invoice" empty="No invoices yet."
+      <DataPage docBuilder={DOCS.invoice} key={k} module="billing" title="Invoices" single="invoice" createLabel="Walk-in invoice" empty="No invoices yet."
         sub="Receive payments against open invoices." columns={invoiceColumns} fields={invoiceRaiseFields} statuses={["unpaid", "partial", "paid"]}
         tabs={[{ key: "open", label: "Open", filter: (r) => r.status !== "paid" }, { key: "paid", label: "Paid", filter: (r) => r.status === "paid" }]}
         rowActions={(r) => r.status !== "paid" ? [{ label: "Receive payment", tone: "primary", onClick: () => setPay(r) }] : []} />

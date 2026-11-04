@@ -39,7 +39,7 @@ export default function DocumentModal({ doc, onClose }) {
               : <button className="btn primary" onClick={apply} disabled={busy}><StampIcon size={16} />{mine ? "Stamp again" : "Stamp this document"}</button>)}
             <button className="btn ghost" onClick={() => window.print()}><Printer size={16} />Print or save as PDF</button>
           </div>
-          {!stamp.has_stamp && <div className="no-print"><Notice tone="error">The clinic stamp has not been uploaded yet. {user.role === "admin" ? <Link to="/app/stamp" onClick={onClose}>Upload it now</Link> : "Ask the clinic admin to add it."}</Notice></div>}
+          {!stamp.has_stamp && !doc.optionalStamp && <div className="no-print"><Notice tone="error">The clinic stamp has not been uploaded yet. {user.role === "admin" ? <Link to="/app/stamp" onClick={onClose}>Upload it now</Link> : "Ask the clinic admin to add it."}</Notice></div>}
           {err && <div className="no-print"><Notice tone="error">{err}</Notice></div>}
           {!canStamp && stamp.has_stamp && <div className="no-print"><Notice>Your role can print this document but not stamp it.</Notice></div>}
 

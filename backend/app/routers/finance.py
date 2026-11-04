@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from ..activity import log
 from ..database import get_db
 from ..deps import clinic_member
-from ..models import Expense, Invoice, Patient, Payment
+from datetime import datetime
+from ..models import CaseEvent, Encounter, Expense, Invoice, Patient, Payment
 from ..roles import COLLECTOR_ROLES, REPORT_ROLES
 from ..wallet import wallet_post
 from .records import _invoice, ser
@@ -69,6 +70,14 @@ def pay(rid: int, body: PayIn, user=Depends(collector), db: Session = Depends(ge
     log(db, user, "billing", "paid", f"{user.full_name} received UGX {body.amount:,.0f} for {inv.invoice_no}" + (f" ({patient.full_name})" if patient else ""),
         {"invoice": inv.invoice_no, "for": inv.description, "patient": patient.full_name if patient else None, "amount": body.amount,
          "method": body.method, "balance_left": (inv.amount or 0) - (inv.paid or 0), "receipt": f"RCT-{p.id:06d}"})
+    enc = db.query(Encounter).filter(Encounter.invoice_id == inv.id, Encounter.clinic_id == user.clinic_id).first()
+    if enc:
+        left = (inv.amount or 0) - (inv.paid or 0)
+        db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="payment",
+                         details=f"UGX {body.amount:,.0f} received by {body.method}. Balance UGX {left:,.0f}. Receipt RCT-{p.id:06d}"))
+        if inv.status == "paid":
+            enc.stage, enc.closed_at = "completed", datetime.utcnow()
+            db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="closed", details="Bill paid in full. Case completed"))
     db.commit()
     return ser(inv)
 

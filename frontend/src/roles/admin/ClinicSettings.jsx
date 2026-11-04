@@ -20,7 +20,7 @@ export default function ClinicSettings() {
       <PageHead title="Clinic settings" sub="Your clinic's profile." />
       <div className="panel pad">
         <div className="detail-top"><Band code={f.code} cls={f.clinic_class} size="lg" />
-          <span className="sub">{f.clinic_class === "A" ? "Class A: full service" : "Class B: essential"}. The code and class are set by the system administrator.</span></div>
+          <span className="sub">{({ A: "Class A: full service", B: "Class B: essential", P: "Pharmacy" })[f.clinic_class]}. The code and class are set by the system administrator.</span></div>
         <form onSubmit={save}>
           <div className="grid2">{FIELDS.map(([k, l, full]) => <Input key={k} full={full} label={l} value={f[k] || ""} onChange={set(k)} />)}
             <Input full label="About the clinic"><textarea className="input" rows={3} value={f.description || ""} onChange={set("description")} /></Input></div>

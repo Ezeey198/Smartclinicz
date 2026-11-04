@@ -1,8 +1,9 @@
 import DataPage from "../../components/DataPage";
+import { DOCS } from "../../config/documents";
 import { LAB_STATUS, labColumns, labFields } from "../../config/schemas";
 
 export default function LabQueue() {
-  return <DataPage module="lab" title="Lab queue" single="lab request" createLabel="Walk-in test" empty="No lab requests yet."
+  return <DataPage docBuilder={DOCS.lab_report} module="lab" title="Lab queue" single="lab request" createLabel="Walk-in test" empty="No lab requests yet."
     sub="Start a test, enter the result, then mark it completed so the doctor can see it." columns={labColumns} fields={labFields} statuses={LAB_STATUS}
     tabs={[{ key: "req", label: "Requested", filter: (r) => r.status === "requested" }, { key: "prog", label: "In progress", filter: (r) => r.status === "in_progress" },
       { key: "done", label: "Completed", filter: (r) => r.status === "completed" }]}

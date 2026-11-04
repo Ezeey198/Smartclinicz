@@ -11,6 +11,8 @@ import radiologist from "./radiologist";
 import records_officer from "./records_officer";
 import store_keeper from "./store_keeper";
 import hr_manager from "./hr_manager";
+import pharmacy_admin from "./pharmacy_admin";
+import pharmacy_seller from "./pharmacy_seller";
 
 // Each role has its own folder, its own pages and its own navigation.
-export const REGISTRY = { superadmin, admin, doctor, nurse, lab_technician, pharmacist, receptionist, cashier, accountant, radiologist, records_officer, store_keeper, hr_manager };
+export const REGISTRY = { superadmin, admin, doctor, nurse, lab_technician, pharmacist, receptionist, cashier, accountant, radiologist, records_officer, store_keeper, hr_manager, pharmacy_admin, pharmacy_seller };

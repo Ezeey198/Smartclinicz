@@ -1,7 +1,8 @@
 import DataPage from "../../components/DataPage";
+import { DOCS } from "../../config/documents";
 import { patientColumns, patientFields } from "../../config/schemas";
 
 export default function Patients() {
-  return <DataPage module="patients" title="Patient registration" single="patient" createLabel="Register patient" empty="No patients yet. Register the first patient."
+  return <DataPage docBuilder={DOCS.patient_summary} module="patients" title="Patient registration" single="patient" createLabel="Register patient" empty="No patients yet. Register the first patient."
     sub="Register patients and keep their contact details up to date." columns={patientColumns} fields={patientFields} />;
 }

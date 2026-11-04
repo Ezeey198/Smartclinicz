@@ -14,7 +14,7 @@ export const Pill = ({ value, tone, children }) => <span className={`pill ${tone
 
 // The clinic code, styled like a hospital wristband: class letter + code.
 export const Band = ({ code, cls, size }) => (
-  <span className={`band ${cls === "B" ? "b" : ""} ${size || ""}`}><b>{cls}</b><span>{code}</span></span>
+  <span className={`band ${cls === "B" ? "b" : cls === "P" ? "p" : ""} ${size || ""}`}><b>{cls}</b><span>{code}</span></span>
 );
 
 export function Modal({ title, onClose, children, wide }) {

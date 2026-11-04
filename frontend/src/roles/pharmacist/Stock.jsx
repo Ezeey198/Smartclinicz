@@ -1,9 +1,10 @@
 import DataPage from "../../components/DataPage";
+import { DOCS } from "../../config/documents";
 import api, { errMsg } from "../../api";
 import { stockColumns, stockFields } from "../../config/schemas";
 
 export default function Stock() {
-  return <DataPage module="inventory" title="Pharmacy stock" single="stock item" createLabel="Add item" empty="No stock recorded yet."
+  return <DataPage docBuilder={DOCS.goods_received} module="inventory" title="Pharmacy stock" single="stock item" createLabel="Add item" empty="No stock recorded yet."
     sub="Medicines and supplies. Items at or below their reorder level are marked Low." columns={stockColumns} fields={stockFields}
     rowActions={(r, { reload, notify }) => [{ label: "Issue stock", onClick: async () => {
       const n = Number(window.prompt(`How many ${r.unit || "units"} of ${r.name} are you issuing?`, "1"));

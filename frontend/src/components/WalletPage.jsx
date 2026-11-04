@@ -7,7 +7,8 @@ import { Empty, Notice, PageHead, Pill, Spinner, fmtStamp, label, ugx } from "./
 import TopUpModal from "./TopUpModal";
 
 const KIND = { topup: ["blue", "Top-up"], subscription: ["amber", "Subscription"], payment_received: ["green", "Payment received"],
-  expense: ["coral", "Expense"], stock_purchase: ["coral", "Stock purchase"], salary: ["coral", "Salary"] };
+  expense: ["coral", "Expense"], stock_purchase: ["coral", "Stock purchase"], salary: ["coral", "Salary"],
+  sale: ["green", "Sale"], sale_void: ["coral", "Cancelled sale"] };
 
 export default function WalletPage() {
   const { user, refresh } = useAuth();

@@ -27,7 +27,7 @@ export default function Clinics() {
 
   return (
     <>
-      <PageHead title="Clinics" sub="Register clinics and keep track of their approval."><button className="btn primary" onClick={() => setReg(true)}><Plus size={16} />Register a clinic</button></PageHead>
+      <PageHead title="Clinics and pharmacies" sub="Register a clinic or pharmacy or a pharmacy and keep track of its approval."><button className="btn primary" onClick={() => setReg(true)}><Plus size={16} />Register a clinic</button></PageHead>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <div className="toolbar"><input className="input search" placeholder="Search by name, code, city or admin email" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       <div className="panel">

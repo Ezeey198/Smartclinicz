@@ -1,8 +1,9 @@
 import DataPage from "../../components/DataPage";
+import { DOCS } from "../../config/documents";
 import { IMG_STATUS, imagingColumns, imagingFields } from "../../config/schemas";
 
 export default function ImagingQueue() {
-  return <DataPage module="imaging" title="Imaging queue" single="imaging request" createLabel="Walk-in exam" empty="No imaging requests yet."
+  return <DataPage docBuilder={DOCS.imaging_report} module="imaging" title="Imaging queue" single="imaging request" createLabel="Walk-in exam" empty="No imaging requests yet."
     sub="Start an examination, write the report, then release it to the doctor." columns={imagingColumns} fields={imagingFields} statuses={IMG_STATUS}
     tabs={[{ key: "req", label: "Requested", filter: (r) => r.status === "requested" }, { key: "prog", label: "In progress", filter: (r) => r.status === "in_progress" },
       { key: "done", label: "Reported", filter: (r) => r.status === "reported" }]}

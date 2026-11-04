@@ -34,11 +34,11 @@ export function ApproveClinic() {
   );
   return (
     <Card>
-      <h2>Approve your clinic</h2>
+      <h2>Approve your {info.clinic_class === "P" ? "pharmacy" : "clinic"}</h2>
       <p>Check these details. Approving switches the clinic on for you and your staff.</p>
       <dl className="facts">
         <dt>Clinic</dt><dd>{info.name}</dd><dt>Code</dt><dd><Band code={info.code} cls={info.clinic_class} /></dd>
-        <dt>Class</dt><dd>{info.clinic_class === "A" ? "Class A (full service)" : "Class B (essential)"}</dd>
+        <dt>Class</dt><dd>{({ A: "Clinic, Class A (full service)", B: "Clinic, Class B (essential)", P: "Pharmacy" })[info.clinic_class]}</dd>
         <dt>Location</dt><dd>{[info.address, info.city].filter(Boolean).join(", ") || "—"}</dd>
         <dt>Contact</dt><dd>{[info.email, info.phone].filter(Boolean).join(" · ")}</dd>
         {info.registration_number && (<><dt>Registration</dt><dd>{info.registration_number}</dd></>)}

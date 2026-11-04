@@ -11,6 +11,16 @@ def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip().strip('"').strip("'").strip()
 
 
+def _db_url() -> str:
+    """Hosts hand out postgres:// URLs; SQLAlchemy needs the driver named."""
+    u = _env("DATABASE_URL", "sqlite:///./clinic.db")
+    if u.startswith("postgres://"):
+        u = "postgresql://" + u[len("postgres://"):]
+    if u.startswith("postgresql://"):
+        u = "postgresql+psycopg://" + u[len("postgresql://"):]
+    return u
+
+
 def _secret_key() -> str:
     """Use SECRET_KEY from .env when it is long enough; otherwise create and reuse a strong one."""
     key = os.getenv("SECRET_KEY", "")
@@ -24,14 +34,17 @@ def _secret_key() -> str:
     return key
 
 
+APP_VERSION = "2026-11-04.1"   # keep equal to frontend/src/version.js
+
+
 class Settings:
     SECRET_KEY = _secret_key()
     ALGORITHM = "HS256"
     TOKEN_HOURS = int(os.getenv("TOKEN_HOURS", "12"))
     INVITE_DAYS = int(os.getenv("INVITE_DAYS", "7"))
     SUBSCRIPTION_PRICE = float(os.getenv("SUBSCRIPTION_PRICE", "1000"))   # UGX per period
-    SUBSCRIPTION_HOURS = int(os.getenv("SUBSCRIPTION_HOURS", "72"))       # length of one paid period
-    TRIAL_HOURS = float(os.getenv("TRIAL_HOURS", "72"))                    # free time after a clinic is approved
+    SUBSCRIPTION_HOURS = int(os.getenv("SUBSCRIPTION_HOURS", "24"))       # length of one paid period
+    TRIAL_HOURS = float(os.getenv("TRIAL_HOURS", "2"))                    # free time after a clinic is approved
     PAYMENT_MODE = os.getenv("PAYMENT_MODE", "simulated")                 # simulated | live
     PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", "").rstrip("/")          # https address of this API, lets providers call back
     PHONE_COUNTRY_CODE = os.getenv("PHONE_COUNTRY_CODE", "256")
@@ -48,8 +61,11 @@ class Settings:
     AIRTEL_CLIENT_SECRET = os.getenv("AIRTEL_CLIENT_SECRET", "")
     AIRTEL_COUNTRY = os.getenv("AIRTEL_COUNTRY", "UG")
     AIRTEL_CURRENCY = os.getenv("AIRTEL_CURRENCY", "UGX")
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./clinic.db")
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    DATABASE_URL = _db_url()
+    FRONTEND_URL = _env("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    # Extra websites allowed to call this API, comma separated (the FRONTEND_URL is always allowed). "*" allows any site.
+    CORS_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+    CORS_ORIGIN_REGEX = _env("CORS_ORIGIN_REGEX")   # e.g. https://.*\.vercel\.app to also allow preview deployments
     SMTP_HOST = _env("SMTP_HOST")
     SMTP_PORT = int(_env("SMTP_PORT", "587") or 587)
     SMTP_SECURITY = (_env("SMTP_SECURITY", "starttls") or "starttls").lower()  # starttls (587) | ssl (465) | none

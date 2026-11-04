@@ -185,3 +185,26 @@ export const payrollColumns = [
   { key: "month", label: "Month", strong: true }, { key: "staff_name", label: "Staff member" }, { key: "amount", label: "Amount", type: "money" },
   { key: "note", label: "Note" }, { key: "paid_by", label: "Paid by" }, { key: "created_at", label: "Paid on", type: "stamp" },
 ];
+
+export const productFields = [
+  { name: "name", label: "Product name", required: true, full: true },
+  { name: "generic_name", label: "Generic name" },
+  { name: "category", label: "Category", type: "select", options: ["Antibiotic", "Analgesic", "Antimalarial", "Antihypertensive", "Antidiabetic", "Vitamin and supplement", "Cough and cold", "Skin care", "Medical supplies", "Other"] },
+  { name: "unit", label: "Unit (tablet, bottle, box…)" }, { name: "sku", label: "Barcode or code" },
+  { name: "selling_price", label: "Selling price per unit (UGX)", type: "number", required: true },
+  { name: "reorder_level", label: "Reorder when stock falls to", type: "number" },
+  { name: "prescription_required", label: "Needs a prescription?", type: "select", options: ["no", "yes"] },
+];
+export const productColumns = [
+  { key: "name", label: "Product", render: (r) => <><b>{r.name}</b> {r.prescription_required && <Pill tone="blue">Rx</Pill>}<div className="sub">{r.generic_name}</div></> },
+  { key: "category", label: "Category" }, { key: "selling_price", label: "Price", type: "money" },
+  { key: "stock", label: "In stock", render: (r) => <>{r.stock} {r.unit || ""} {r.low && <Pill tone="coral">Low</Pill>}{r.expired_stock > 0 && <div className="sub" style={{ color: "var(--coral)" }}>{r.expired_stock} expired</div>}</> },
+  { key: "next_expiry", label: "Next expiry" },
+];
+export const supplierFields = [
+  { name: "name", label: "Supplier name", required: true, full: true }, { name: "phone", label: "Phone" }, { name: "email", label: "Email" },
+  { name: "address", label: "Address", full: true }, { name: "notes", label: "Notes", full: true },
+];
+export const supplierColumns = [
+  { key: "name", label: "Supplier", strong: true }, { key: "phone", label: "Phone" }, { key: "email", label: "Email" }, { key: "address", label: "Address" },
+];

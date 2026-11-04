@@ -34,9 +34,17 @@ export default function Shell() {
   }, [loc.pathname, user.role, expired]);
 
   if (expired && !user.is_superadmin && !isAdmin) return <Inactive />;
-  const cfg = expired ? expiredAdmin : REGISTRY[user.is_superadmin ? "superadmin" : user.role];
+  const roleKey = user.is_superadmin ? "superadmin" : user.clinic?.clinic_class === "P" && isAdmin ? "pharmacy_admin" : user.role;
+  const cfg = expired ? expiredAdmin : REGISTRY[roleKey];
   const base = user.is_superadmin ? "/super" : "/app";
-  if (!cfg) return <Notice tone="error">No workspace is set up for the role "{user.role}".</Notice>;
+  if (!cfg) return (
+    <div className="link-page"><div className="link-card">
+      <div className="brand dark">ClinicPro</div>
+      <h2>This website is out of date</h2>
+      <p>The server knows your role ("{user.role}") but this copy of the website does not. The website needs to be redeployed from the latest files.</p>
+      <button className="btn primary" onClick={() => { logout(); nav("/login"); }}>Sign out</button>
+    </div></div>
+  );
   const items = cfg.nav.filter((i) => !i.module || user.modules?.[i.module]);
 
   return (
