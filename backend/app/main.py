@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import APP_VERSION, settings
 from .database import Base, SessionLocal, engine
 from .migrate import ensure_columns, grandfather_trials
-from .routers import activity, auth, cases, clinic, pharmacy, finance, hr, patient_file, payments, records, stamps, stock, subscription, superadmin, wallet
+from .routers import activity, auth, cases, clinic, pharmacy, public, public_page, finance, hr, patient_file, payments, records, stamps, stock, subscription, superadmin, wallet
 from .seed import seed_superadmin
 
 
@@ -31,7 +31,7 @@ _any = "*" in _origins   # sign-in uses a bearer token, not cookies, so allowing
 app.add_middleware(CORSMiddleware, allow_origins=["*"] if _any else sorted(_origins), allow_origin_regex=settings.CORS_ORIGIN_REGEX or None,
                    allow_credentials=not _any, allow_methods=["*"], allow_headers=["*"])
 
-for r in [auth.router, superadmin.router, clinic.router, finance.router, hr.router, patient_file.router, wallet.router, subscription.router, activity.router, stock.router, payments.router, stamps.router, cases.router, pharmacy.router, *records.routers]:
+for r in [auth.router, superadmin.router, clinic.router, finance.router, hr.router, patient_file.router, wallet.router, subscription.router, activity.router, stock.router, payments.router, stamps.router, cases.router, pharmacy.router, public.router, public_page.router, *records.routers]:
     app.include_router(r, prefix="/api")
 
 

@@ -14,6 +14,7 @@ import Reports from "./Reports";
 import Leave from "./Leave";
 import PatientFiles from "./PatientFiles";
 import Wallet from "./Wallet";
+import PublicPage from "./PublicPage";
 import Cases from "./Cases";
 import Subscription from "./Subscription";
 import ClinicStamp from "./Stamp";
@@ -42,6 +43,7 @@ export default {
     { to: "/app/prices", label: "Price list", icon: "Tags", module: "prices" },
     { to: "/app/files", label: "Patient files", icon: "FolderOpen" },
     { to: "/app/activity", label: "Alerts", icon: "Bell", badge: "alerts" },
+    { to: "/app/public", label: "Public page", icon: "Globe" },
     { to: "/app/stamp", label: "Clinic stamp", icon: "Stamp" },
     { to: "/app/subscription", label: "Subscription", icon: "BadgeCheck" },
     { to: "/app/staff", label: "Staff", icon: "UserCog" },
@@ -54,7 +56,7 @@ export default {
     { path: "consultations", element: <Consultations /> }, { path: "lab", element: <Laboratory /> }, { path: "pharmacy", element: <Pharmacy /> },
     { path: "stock", element: <Stock /> }, { path: "imaging", element: <Imaging /> }, { path: "billing", element: <Billing /> },
     { path: "expenses", element: <Expenses /> }, { path: "reports", element: <Reports /> }, { path: "leave", element: <Leave /> }, { path: "payroll", element: <Payroll /> }, { path: "prices", element: <Prices /> },
-    { path: "activity", element: <Activity /> }, { path: "subscription", element: <Subscription /> }, { path: "stamp", element: <ClinicStamp /> },
+    { path: "activity", element: <Activity /> }, { path: "subscription", element: <Subscription /> }, { path: "stamp", element: <ClinicStamp /> }, { path: "public", element: <PublicPage /> },
     { path: "files", element: <PatientFiles /> }, { path: "staff", element: <Staff /> }, { path: "settings", element: <ClinicSettings /> },
     { path: "wallet", element: <Wallet /> }, { path: "account", element: <Account /> },
   ],

@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, LargeBinary, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -33,6 +33,7 @@ class Clinic(Base):
     stamp_image = Column(Text)        # the clinic's digital stamp as a PNG data URL
     stamp_ink = Column(String(9))     # main ink colour of the stamp, used for the date line
     stamp_updated = Column(DateTime)
+    public_profile = Column(Text)     # JSON: what the public page shows (tagline, about, services, locations, visibility)
     created_at = Column(DateTime, default=now)
     users = relationship("User", back_populates="clinic")
 
@@ -488,6 +489,29 @@ class SaleLine(Base):
     line_total = Column(Float)
 
 
+class SiteContent(Base):
+    """Text the superadmin controls on the public website (the About page and the landing page)."""
+    __tablename__ = "site_content"
+    key = Column(String(40), primary_key=True)
+    value = Column(Text)
+    updated_at = Column(DateTime, default=now)
+
+
+class MediaItem(Base):
+    """A photo or video on a clinic's or pharmacy's public page. Files are stored in the database so they survive restarts."""
+    __tablename__ = "media_items"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    kind = Column(String(10))        # photo | video
+    source = Column(String(20))      # file | youtube | vimeo | direct
+    title = Column(String(200))
+    url = Column(String(500))        # for videos added by link
+    mime = Column(String(60))
+    blob = Column(LargeBinary)
+    size = Column(Integer, default=0)
+    created_at = Column(DateTime, default=now)
+
+
 CLINIC_DATA = [Patient, Appointment, Visit, LabOrder, Prescription, Invoice, InventoryItem, ImagingOrder, Expense, LeaveRequest, Payment,
                ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse, Encounter, CaseEvent, CaseCharge,
-               Product, Supplier, StockBatch, Purchase, PurchaseLine, Sale, SaleLine]
+               Product, Supplier, StockBatch, Purchase, PurchaseLine, Sale, SaleLine, MediaItem]

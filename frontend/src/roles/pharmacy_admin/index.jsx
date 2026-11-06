@@ -13,6 +13,7 @@ import Subscription from "./Subscription";
 import Stamp from "./Stamp";
 import Settings from "./Settings";
 import Wallet from "./Wallet";
+import PublicPage from "./PublicPage";
 import Account from "../shared/Account";
 
 // The pharmacy admin: the whole pharmacy, its sellers, its stock and its money.
@@ -30,6 +31,7 @@ export default {
     { to: "/app/activity", label: "Alerts", icon: "Bell", badge: "alerts" },
     { to: "/app/staff", label: "Staff", icon: "UserCog" },
     { to: "/app/subscription", label: "Subscription", icon: "BadgeCheck" },
+    { to: "/app/public", label: "Public page", icon: "Globe" },
     { to: "/app/stamp", label: "Pharmacy stamp", icon: "Stamp" },
     { to: "/app/settings", label: "Pharmacy settings", icon: "Settings" },
     { to: "/app/wallet", label: "Wallet", icon: "Wallet" },
@@ -39,6 +41,6 @@ export default {
     { index: true, element: <Dashboard /> }, { path: "sell", element: <Sell /> }, { path: "sales", element: <Sales /> }, { path: "products", element: <Products /> },
     { path: "expiry", element: <Expiry /> }, { path: "suppliers", element: <Suppliers /> }, { path: "purchases", element: <Purchases /> }, { path: "reports", element: <Reports /> },
     { path: "expenses", element: <Expenses /> }, { path: "activity", element: <Activity /> }, { path: "staff", element: <Staff /> }, { path: "subscription", element: <Subscription /> },
-    { path: "stamp", element: <Stamp /> }, { path: "settings", element: <Settings /> }, { path: "wallet", element: <Wallet /> }, { path: "account", element: <Account /> },
+    { path: "stamp", element: <Stamp /> }, { path: "public", element: <PublicPage /> }, { path: "settings", element: <Settings /> }, { path: "wallet", element: <Wallet /> }, { path: "account", element: <Account /> },
   ],
 };
