@@ -1,0 +1,6 @@
+.venv
+ezzy
+__pycache__
+*.db
+.env
+.secret_key
