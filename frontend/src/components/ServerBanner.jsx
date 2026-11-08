@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api, { API_BASE } from "../api";
+import { APP_VERSION } from "../version";
 
 // Tells people plainly when the backend cannot be reached, instead of a page that just fails.
 export default function ServerBanner() {

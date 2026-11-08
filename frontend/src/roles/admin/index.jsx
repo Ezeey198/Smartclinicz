@@ -37,7 +37,7 @@ export default {
     { to: "/app/imaging", label: "Imaging", icon: "ScanLine", module: "imaging" },
     { to: "/app/billing", label: "Billing", icon: "Receipt", module: "billing" },
     { to: "/app/expenses", label: "Expenses", icon: "Banknote", module: "accounts" },
-    { to: "/app/reports", label: "Reports", icon: "BarChart3", module: "accounts" },
+    { to: "/app/reports", label: "Reports", icon: "TrendingUp", module: "accounts" },
     { to: "/app/leave", label: "Leave", icon: "CalendarOff", module: "hr" },
     { to: "/app/payroll", label: "Salaries", icon: "HandCoins", module: "payroll" },
     { to: "/app/prices", label: "Price list", icon: "Tags", module: "prices" },

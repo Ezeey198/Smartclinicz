@@ -1,4 +1,4 @@
-import { PauseCircle, PlayCircle, Send, Trash2 } from "lucide-react";
+import { Pause as PauseCircle, Play as PlayCircle, Send, Trash2 } from "lucide-react";
 import api from "../../api";
 import { Band, Modal, fmtDateTime } from "../../components/ui";
 import { statusPill } from "./statusPill";

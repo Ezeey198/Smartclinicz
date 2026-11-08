@@ -12,7 +12,7 @@ export default {
     { to: "/app/invoices", label: "Invoices", icon: "Receipt" },
     { to: "/app/expenses", label: "Expenses", icon: "Banknote" },
     { to: "/app/prices", label: "Price list", icon: "Tags" },
-    { to: "/app/reports", label: "Reports", icon: "BarChart3" },
+    { to: "/app/reports", label: "Reports", icon: "TrendingUp" },
     { to: "/app/wallet", label: "My wallet", icon: "Wallet" },
     { to: "/app/account", label: "My account", icon: "CircleUser" },
   ],

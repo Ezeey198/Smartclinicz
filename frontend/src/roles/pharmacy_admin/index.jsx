@@ -26,7 +26,7 @@ export default {
     { to: "/app/expiry", label: "Expiry", icon: "CalendarClock", module: "products" },
     { to: "/app/suppliers", label: "Suppliers", icon: "Truck", module: "suppliers" },
     { to: "/app/purchases", label: "Purchases", icon: "PackagePlus", module: "purchases" },
-    { to: "/app/reports", label: "Reports", icon: "BarChart3", module: "sales" },
+    { to: "/app/reports", label: "Reports", icon: "TrendingUp", module: "sales" },
     { to: "/app/expenses", label: "Expenses", icon: "Banknote", module: "accounts" },
     { to: "/app/activity", label: "Alerts", icon: "Bell", badge: "alerts" },
     { to: "/app/staff", label: "Staff", icon: "UserCog" },
