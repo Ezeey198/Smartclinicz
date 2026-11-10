@@ -14,6 +14,8 @@ def _env(name: str, default: str = "") -> str:
 def _db_url() -> str:
     """Hosts hand out postgres:// URLs; SQLAlchemy needs the driver named."""
     u = _env("DATABASE_URL", "sqlite:///./clinic.db")
+    if u.startswith("sqlite:///./") and os.getenv("VERCEL"):    # the project folder is read-only on Vercel; /tmp is the only writable place
+        u = "sqlite:////tmp/" + u[len("sqlite:///./"):]
     if u.startswith("postgres://"):
         u = "postgresql://" + u[len("postgres://"):]
     if u.startswith("postgresql://"):
@@ -30,7 +32,12 @@ def _secret_key() -> str:
     if f.exists() and len(f.read_text().strip()) >= 32:
         return f.read_text().strip()
     key = secrets.token_urlsafe(48)
-    f.write_text(key)
+    for target in (f, Path("/tmp/.clinicpro_secret_key")):   # a read-only host cannot write next to the code
+        try:
+            target.write_text(key)
+            break
+        except OSError:
+            continue
     return key
 
 

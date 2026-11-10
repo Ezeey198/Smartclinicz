@@ -7,15 +7,23 @@ from .models import Clinic
 
 
 def ensure_columns():
+    """Adds columns that older databases do not have yet. Each change is separate, so one that already exists never blocks the others."""
     insp = inspect(engine)
-    with engine.begin() as conn:
-        for table in Base.metadata.sorted_tables:
-            if not insp.has_table(table.name):
+    pg = engine.dialect.name == "postgresql"
+    for table in Base.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in have:
                 continue
-            have = {c["name"] for c in insp.get_columns(table.name)}
-            for col in table.columns:
-                if col.name not in have:
-                    conn.execute(text(f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col.type.compile(engine.dialect)}"))
+            ddl = f"ALTER TABLE {table.name} ADD COLUMN {'IF NOT EXISTS ' if pg else ''}{col.name} {col.type.compile(engine.dialect)}"
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(ddl))
+            except Exception as e:      # another server may have added it a moment ago
+                if col.name not in {c["name"] for c in inspect(engine).get_columns(table.name)}:
+                    raise e
 
 
 def grandfather_trials():
