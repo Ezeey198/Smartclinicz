@@ -28,7 +28,7 @@ export default function Login() {
         <div className="brand">ClinicPro</div>
         <h1>Your clinic opens with its code.</h1>
         <p>Every clinic gets its own code. Your clinic admin shares it when your account is created. Keep it handy, like a wristband.</p>
-        <div className="band-demo"><Band code="CLA-XXXXXX" cls="A" size="xl" /><Band code="CLB-XXXXXX" cls="B" size="xl" /></div>
+        <div className="band-demo"><Band code="CL-XXXXXX" size="xl" /><Band code="PH-XXXXXX" size="xl" /></div>
       </section>
       <section className="auth-form">
         <form onSubmit={submit}>
@@ -38,7 +38,7 @@ export default function Login() {
             <button type="button" className={mode === "super" ? "on" : ""} onClick={() => setMode("super")}>Superadmin</button>
           </div>
           {err && <Notice tone="error">{err}</Notice>}
-          {mode === "clinic" && <Input label="Clinic code" value={f.clinic_code} onChange={set("clinic_code")} placeholder="CLA-7K3MQ" required autoCapitalize="characters" />}
+          {mode === "clinic" && <Input label="Clinic code" value={f.clinic_code} onChange={set("clinic_code")} placeholder="CL-7K3MQ2" required autoCapitalize="characters" />}
           <Input label="Email" type="email" value={f.email} onChange={set("email")} required autoComplete="username" />
           <Input label="Password" type="password" value={f.password} onChange={set("password")} required autoComplete="current-password" />
           <button className="btn primary block" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>

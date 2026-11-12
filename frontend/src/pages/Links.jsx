@@ -38,7 +38,7 @@ export function ApproveClinic() {
       <p>Check these details. Approving switches the clinic on for you and your staff.</p>
       <dl className="facts">
         <dt>Clinic</dt><dd>{info.name}</dd><dt>Code</dt><dd><Band code={info.code} cls={info.clinic_class} /></dd>
-        <dt>Class</dt><dd>{({ A: "Clinic, Class A (full service)", B: "Clinic, Class B (essential)", P: "Pharmacy" })[info.clinic_class]}</dd>
+        <dt>Type</dt><dd>{info.clinic_class === "P" ? "Pharmacy" : "Clinic"}</dd>
         <dt>Location</dt><dd>{[info.address, info.city].filter(Boolean).join(", ") || "—"}</dd>
         <dt>Contact</dt><dd>{[info.email, info.phone].filter(Boolean).join(" · ")}</dd>
         {info.registration_number && (<><dt>Registration</dt><dd>{info.registration_number}</dd></>)}

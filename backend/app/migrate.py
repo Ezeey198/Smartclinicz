@@ -31,16 +31,16 @@ REMOVED_ROLES = ("cashier", "records_officer", "store_keeper", "hr_manager")
 
 def retire_removed_roles():
     """Cashier, records officer, store keeper and HR manager no longer exist. Anyone still holding one is deactivated
-    so the clinic admin can move them to a current role. Existing clinics keep the optional roles they already use."""
+    so the clinic admin can move them to a current role. Existing clinics keep any custom role they already use."""
     from .models import User
-    from .roles import optional_roles
+    from .roles import custom_roles
     import json
     with SessionLocal() as db:
         for u in db.query(User).filter(User.role.in_(REMOVED_ROLES)):
             u.is_active = False
         for c in db.query(Clinic).filter(Clinic.extra_roles.is_(None)):
             used = {u.role for u in c.users}
-            c.extra_roles = json.dumps([r for r in optional_roles(c.clinic_class) if r in used])
+            c.extra_roles = json.dumps([r for r in custom_roles(c.clinic_class) if r in used])
         db.commit()
 
 

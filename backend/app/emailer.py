@@ -4,7 +4,7 @@ from email.message import EmailMessage
 from sqlalchemy.orm import Session
 from .config import settings
 from .models import EmailOutbox, Clinic, User
-from .roles import CLASS_NAMES, label_for
+from .roles import label_for
 
 
 def smtp_configured() -> bool:
@@ -63,7 +63,7 @@ def send_clinic_approval(db: Session, clinic: Clinic, admin: User) -> dict:
     noun = "pharmacy" if clinic.clinic_class == "P" else "clinic"
     return deliver(db, admin.email, f"Approve your {noun}: {clinic.name}", f"Approve your {noun}",
                    [f"Hello {admin.full_name},",
-                    f"<b>{clinic.name}</b> has been registered on ClinicPro as <b>{CLASS_NAMES[clinic.clinic_class]}</b>.",
+                    f"<b>{clinic.name}</b> has been registered on ClinicPro as a {noun}.",
                     f"Your {noun} code is <b>{clinic.code}</b>. Keep it safe.",
                     f"Review the details and approve the {noun} to switch it on."],
                    f"Approve {noun}", link)

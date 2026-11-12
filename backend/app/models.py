@@ -335,7 +335,7 @@ class StampUse(Base):
 
 
 class Encounter(Base):
-    """One patient journey in a Class B clinic: doctor -> (lab) -> doctor -> pharmacy -> one bill."""
+    """One patient journey in a clinic: doctor -> (lab) -> doctor -> pharmacy -> one bill."""
     __tablename__ = "encounters"
     id = Column(Integer, primary_key=True)
     clinic_id = _cid()

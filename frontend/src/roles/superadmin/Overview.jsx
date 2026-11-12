@@ -10,7 +10,7 @@ export default function Overview() {
   const [rows, setRows] = useState([]);
   useEffect(() => { api.get("/superadmin/stats").then((r) => setS(r.data)); api.get("/superadmin/clinics").then((r) => setRows(r.data.slice(0, 6))); }, []);
   if (!s) return <Spinner />;
-  const cells = [["Clinics", s.clinics], ["Active", s.active], ["Awaiting approval", s.pending], ["Suspended", s.suspended], ["Class A clinics", s.class_a], ["Class B clinics", s.class_b], ["Pharmacies", s.pharmacies], ["Clinic staff", s.users]];
+  const cells = [["Clinics", s.clinics], ["Active", s.active], ["Awaiting approval", s.pending], ["Suspended", s.suspended], ["Pharmacies", s.pharmacies], ["Clinic staff", s.users]];
   return (
     <>
       <PageHead title="Overview" sub="Every clinic registered on the system."><Link className="btn primary" to="/super/clinics"><Plus size={16} />Register a clinic</Link></PageHead>

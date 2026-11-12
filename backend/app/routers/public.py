@@ -24,8 +24,7 @@ DEFAULT_ABOUT = {
     ],
     "clinics_intro": "Browse the clinics and pharmacies on ClinicPro. Open one to see its services, photos, locations and videos.",
     "features": [
-        {"heading": "Clinic, Class A (full service)", "text": "Patient records and files, appointments, doctor consultations, laboratory, imaging, pharmacy and stock, billing and receipts, staff and payroll."},
-        {"heading": "Clinic, Class B (essential)", "text": "The patient journey from doctor to laboratory to pharmacy, with one combined bill and one case file for every patient."},
+        {"heading": "Clinic", "text": "Admin, doctor, nurse, lab technician and pharmacist, with the patient journey from doctor to laboratory to pharmacy, one combined bill and one case file for every patient."},
         {"heading": "Pharmacy", "text": "Point of sale, batch and expiry tracking, suppliers and purchases, prescription control, wallet and sales reports."},
     ],
 }

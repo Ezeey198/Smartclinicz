@@ -23,7 +23,7 @@ EDITABLE = ["name", "registration_number", "license_number", "email", "phone", "
 
 class ClinicIn(BaseModel):
     name: str = Field(min_length=2)
-    clinic_class: Literal["A", "B", "P"]
+    kind: Literal["clinic", "pharmacy"] = "clinic"
     registration_number: str | None = None
     license_number: str | None = None
     email: EmailStr
@@ -43,9 +43,9 @@ ALPHABET = "".join(c for c in string.ascii_uppercase if c not in "OI") + "234567
 
 
 def _code(db: Session, cls: str) -> str:
-    """A new, never-used clinic code such as CLA-7K3MQ2 (the letter after CL is the class)."""
+    """A new, never-used code such as CL-7K3MQ2 for a clinic or PH-7K3MQ2 for a pharmacy."""
     while True:
-        code = ("PH-" if cls == "P" else f"CL{cls}-") + "".join(secrets.choice(ALPHABET) for _ in range(6))
+        code = ("PH-" if cls == "P" else "CL-") + "".join(secrets.choice(ALPHABET) for _ in range(6))
         if not db.query(Clinic).filter(Clinic.code == code).first():
             return code
 
@@ -68,8 +68,6 @@ def stats(db: Session = Depends(get_db)):
     return {"clinics": q.count(), "active": q.filter(Clinic.status == "active").count(),
             "pending": q.filter(Clinic.status == "pending").count(),
             "suspended": q.filter(Clinic.status == "suspended").count(),
-            "class_a": q.filter(Clinic.clinic_class == "A").count(),
-            "class_b": q.filter(Clinic.clinic_class == "B").count(),
             "pharmacies": q.filter(Clinic.clinic_class == "P").count(),
             "users": db.query(User).filter(User.clinic_id.isnot(None)).count()}
 
@@ -83,6 +81,8 @@ def list_clinics(db: Session = Depends(get_db)):
 def create_clinic(body: ClinicIn, db: Session = Depends(get_db)):
     data = body.model_dump()
     admin_data = {k: data.pop(k) for k in ["admin_name", "admin_email", "admin_phone"]}
+    # A clinic always gets the default roles and the default (patient-journey) workflow; the internal key is "B". Pharmacies are "P".
+    data["clinic_class"] = "P" if data.pop("kind") == "pharmacy" else "B"
     for _ in range(5):  # the database also enforces unique codes; retry in the rare case of a clash
         clinic = Clinic(code=_code(db, body.clinic_class), status="pending", approval_token=new_link_token(), extra_roles="[]", **data)
         db.add(clinic)

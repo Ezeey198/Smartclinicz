@@ -13,7 +13,7 @@ from sqlalchemy import func
 from ..roles import MONEY_ROLES
 from ..models import (Activity, Appointment, Encounter, Product, Sale, SaleLine, StockBatch, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Expense, Patient, Payment,
                       Prescription, User, Visit)
-from ..roles import DEFAULT_ROLES, ROLE_LABELS, desc_for, enabled_roles, extra_roles, label_for, module_level, optional_roles
+from ..roles import DEFAULT_ROLES, ROLE_LABELS, desc_for, enabled_roles, extra_roles, label_for, module_level, custom_roles
 from ..security import new_link_token
 
 router = APIRouter(prefix="/clinic", tags=["clinic"])
@@ -52,14 +52,14 @@ def roles(user: User = Depends(clinic_member)):
 
 @router.get("/role-settings")
 def role_settings(admin: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
-    """Default roles (always on) and the optional roles the admin can switch on, with how many people hold each."""
+    """Default roles (always on) and the custom roles the admin can switch on (none defined yet), with how many people hold each."""
     c = admin.clinic
     on, cls = enabled_roles(c), c.clinic_class
     people = lambda r: db.query(User).filter(User.clinic_id == c.id, User.role == r).count()
     row = lambda r, default: {"value": r, "label": label_for(r, cls), "description": desc_for(r, cls), "default": default,
                               "enabled": r in on, "people": people(r)}
     return {"defaults": [row(r, True) for r in DEFAULT_ROLES] if cls != "P" else [],
-            "optional": [row(r, False) for r in optional_roles(cls)]}
+            "custom": [row(r, False) for r in custom_roles(cls)]}
 
 
 class RolesIn(BaseModel):
@@ -69,10 +69,10 @@ class RolesIn(BaseModel):
 @router.put("/role-settings")
 def save_role_settings(body: RolesIn, admin: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
     c = admin.clinic
-    allowed = optional_roles(c.clinic_class)
+    allowed = custom_roles(c.clinic_class)
     bad = [r for r in body.extra_roles if r not in allowed]
     if bad:
-        raise HTTPException(400, f"{ROLE_LABELS.get(bad[0], bad[0])} is not available for Class {c.clinic_class} clinics.")
+        raise HTTPException(400, f"{ROLE_LABELS.get(bad[0], bad[0])} is not an available custom role.")
     keep = [r for r in allowed if r in body.extra_roles]
     for r in allowed:
         if r not in keep and db.query(User).filter(User.clinic_id == c.id, User.role == r).count():
@@ -80,7 +80,7 @@ def save_role_settings(body: RolesIn, admin: User = Depends(clinic_admin_only), 
     before = extra_roles(c)
     c.extra_roles = json.dumps(keep)
     if keep != before:
-        log(db, admin, "settings", "updated", f"{admin.full_name} changed the optional roles to: {', '.join(ROLE_LABELS[r] for r in keep) or 'none'}", {"extra_roles": keep})
+        log(db, admin, "settings", "updated", f"{admin.full_name} changed the custom roles to: {', '.join(ROLE_LABELS[r] for r in keep) or 'none'}", {"extra_roles": keep})
     db.commit()
     return role_settings(admin, db)
 

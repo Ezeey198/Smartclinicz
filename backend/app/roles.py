@@ -10,40 +10,37 @@ ROLE_LABELS = {
     "pharmacy_seller": "Pharmacy seller",
 }
 
-# Every new clinic starts with these five roles, which follow the Class B work format
-# (doctor -> lab -> pharmacy, one combined bill, one case file). The clinic admin creates the people for them later.
+# Every new clinic starts with these five roles. They follow the doctor -> lab -> pharmacy patient journey
+# (one combined bill, one case file for every patient). The clinic admin creates the people for them later.
 DEFAULT_ROLES = ["admin", "doctor", "nurse", "lab_technician", "pharmacist"]
-# Roles the clinic admin can switch on later if the clinic needs them. Nothing is switched on by default.
-OPTIONAL_ROLES = {"B": ["receptionist", "accountant"], "A": ["receptionist", "accountant", "radiologist"]}
-CLASS_ROLES = {   # every role a class can ever have
-    "B": DEFAULT_ROLES + OPTIONAL_ROLES["B"],
-    "A": DEFAULT_ROLES + OPTIONAL_ROLES["A"],
-    "P": ["admin", "pharmacy_seller"],   # a pharmacy: its admin and its sellers
-}
+# Custom roles a clinic admin will be able to switch on later. ON HOLD: nothing is defined yet, so none can be switched on.
+# When they are defined, add them here (for example "receptionist", "accountant").
+CUSTOM_ROLES = []
+PHARMACY_ROLES = ["admin", "pharmacy_seller"]   # a pharmacy: its admin and its sellers
 
 
-def optional_roles(clinic_class):
-    return OPTIONAL_ROLES.get(clinic_class, [])
+def custom_roles(clinic_class):
+    return [] if clinic_class == "P" else CUSTOM_ROLES
 
 
 def extra_roles(clinic):
-    """The optional roles this clinic's admin has switched on (a JSON list on the clinic; empty by default)."""
+    """The custom roles this clinic's admin has switched on (a JSON list on the clinic; empty by default)."""
     try:
         saved = json.loads(clinic.extra_roles) if clinic.extra_roles else []
     except ValueError:
         saved = []
-    return [r for r in optional_roles(clinic.clinic_class) if r in saved]
+    return [r for r in custom_roles(clinic.clinic_class) if r in saved]
 
 
 def enabled_roles(clinic):
-    """Roles the clinic admin may give to staff right now: the defaults plus any optional roles switched on."""
+    """Roles the clinic admin may give to staff right now: the defaults plus any custom roles switched on."""
     if clinic.clinic_class == "P":
-        return CLASS_ROLES["P"]
+        return PHARMACY_ROLES
     return DEFAULT_ROLES + extra_roles(clinic)
 _B = ["patients", "appointments", "visits", "lab", "pharmacy", "inventory", "billing", "prices", "accounts"]
 CLASS_MODULES = {"B": _B + ["cases"], "A": _B + ["imaging", "hr", "payroll"]}
 CLASS_MODULES["P"] = ["products", "suppliers", "purchases", "sales", "accounts"]
-CLASS_NAMES = {"A": "Class A - full service", "B": "Class B - essential", "P": "Pharmacy"}
+CLASS_NAMES = {"A": "Clinic", "B": "Clinic", "P": "Pharmacy"}   # shown to people; the clinic class itself is internal
 
 ROLE_DESC = {
     "admin": "Full control of the clinic: staff, prices, wallet, subscription and every module.",
@@ -86,10 +83,10 @@ MODULE_ACCESS = {
     "billing": {"write": ["accountant", "receptionist", "pharmacist"], "read": []},
     "imaging": {"write": ["doctor", "radiologist"], "read": ["nurse"]},
     "accounts": {"write": ["accountant"], "read": []},
-    "hr": {"write": [], "read": []},                      # leave: clinic admin only (Class A)
+    "hr": {"write": [], "read": []},                      # leave: clinic admin only 
     "prices": {"write": ["accountant"], "read": ["receptionist", "doctor", "nurse", "lab_technician", "radiologist", "pharmacist"]},
-    "payroll": {"write": [], "read": ["accountant"]},    # salaries: clinic admin pays, accountant can view (Class A)
-    "cases": {"write": ["doctor", "pharmacist"], "read": ["nurse", "lab_technician"]},   # Class B patient journey
+    "payroll": {"write": [], "read": ["accountant"]},    # salaries: clinic admin pays, accountant can view 
+    "cases": {"write": ["doctor", "pharmacist"], "read": ["nurse", "lab_technician"]},   # the patient journey
     # pharmacies (class P)
     "products": {"write": [], "read": ["pharmacy_seller"]},
     "suppliers": {"write": [], "read": []},

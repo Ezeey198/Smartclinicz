@@ -2,12 +2,11 @@ import { useState } from "react";
 import api, { errMsg } from "../../api";
 import { Band, Input, Modal, Notice } from "../../components/ui";
 
-const blank = { clinic_class: "B", name: "", registration_number: "", license_number: "", email: "", phone: "", website: "", address: "", city: "",
+const blank = { kind: "clinic", name: "", registration_number: "", license_number: "", email: "", phone: "", website: "", address: "", city: "",
   district: "", country: "", description: "", admin_name: "", admin_email: "", admin_phone: "" };
 const KINDS = [
-  ["A", "Clinic, Class A", "The five default roles plus optional reception, accountant and radiology roles, with imaging, leave and salaries."],
-  ["B", "Clinic, Class B", "Admin, doctor, nurse, lab technician and pharmacist, with the doctor-to-lab-to-pharmacy patient journey. Reception and accountant can be added later."],
-  ["P", "Pharmacy", "A pharmacy admin and pharmacy sellers: stock, suppliers, purchases, point of sale and reports."],
+  ["clinic", "Clinic", "Starts with the default roles: admin, doctor, nurse, lab technician and pharmacist, following the doctor-to-lab-to-pharmacy patient journey. Custom roles will come later."],
+  ["pharmacy", "Pharmacy", "A pharmacy admin and pharmacy sellers: stock, suppliers, purchases, point of sale and reports."],
 ];
 
 export default function RegisterClinic({ onClose, onDone }) {
@@ -15,7 +14,7 @@ export default function RegisterClinic({ onClose, onDone }) {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const ph = f.clinic_class === "P";
+  const ph = f.kind === "pharmacy";
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setErr("");
     try { const { data } = await api.post("/superadmin/clinics", f); onDone(data); } catch (x) { setErr(errMsg(x)); } finally { setBusy(false); }
@@ -24,11 +23,11 @@ export default function RegisterClinic({ onClose, onDone }) {
     <Modal title="Register a clinic or pharmacy" onClose={onClose} wide>
       <form onSubmit={submit}>
         <p className="group-title">What are you registering?</p>
-        <div className="class-pick" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+        <div className="class-pick" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
           {KINDS.map(([v, t, d]) => (
-            <label key={v} className={f.clinic_class === v ? "on" : ""}>
-              <input type="radio" name="cls" checked={f.clinic_class === v} onChange={() => setF({ ...f, clinic_class: v })} />
-              <Band code={v === "P" ? "PH" : `CL${v}`} cls={v} /><strong>{t}</strong><small>{d}</small>
+            <label key={v} className={f.kind === v ? "on" : ""}>
+              <input type="radio" name="kind" checked={f.kind === v} onChange={() => setF({ ...f, kind: v })} />
+              <Band code={v === "pharmacy" ? "PH" : "CL"} /><strong>{t}</strong><small>{d}</small>
             </label>
           ))}
         </div>
@@ -46,7 +45,6 @@ export default function RegisterClinic({ onClose, onDone }) {
           <Input label="Website" value={f.website} onChange={set("website")} />
           <Input full label="About"><textarea className="input" rows={2} value={f.description} onChange={set("description")} /></Input>
         </div>
-        {!ph && <Notice>Every clinic starts with the five default roles: admin, doctor, nurse, lab technician and pharmacist. The clinic admin creates the staff for them after approving the clinic.</Notice>}
         <p className="group-title">{ph ? "Pharmacy admin" : "Clinic admin"}</p>
         <div className="grid2">
           <Input label="Full name" value={f.admin_name} onChange={set("admin_name")} required />

@@ -8,7 +8,7 @@ export default function ClinicDetail({ sel, setSel, act, onClose, onResend }) {
 <Modal title={sel.name} onClose={() => setSel(null)}>
           <div className="detail-top"><Band code={sel.code} cls={sel.clinic_class} size="lg" />{statusPill(sel.status)}</div>
           <dl className="facts">
-            <dt>Class</dt><dd>{({ A: "Clinic, Class A (full service)", B: "Clinic, Class B (essential)", P: "Pharmacy" })[sel.clinic_class]}</dd>
+            <dt>Type</dt><dd>{sel.clinic_class === "P" ? "Pharmacy" : "Clinic"}</dd>
             <dt>Registration</dt><dd>{sel.registration_number || "—"}</dd><dt>Licence</dt><dd>{sel.license_number || "—"}</dd>
             <dt>Contact</dt><dd>{sel.email}<br />{sel.phone}</dd>
             <dt>Address</dt><dd>{[sel.address, sel.city, sel.district, sel.country].filter(Boolean).join(", ")}</dd>

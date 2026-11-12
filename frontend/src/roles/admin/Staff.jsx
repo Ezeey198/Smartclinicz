@@ -28,7 +28,7 @@ export default function Staff() {
   return (
     <>
       <PageHead title="Staff" sub="Create accounts for your team and choose their roles."><button className="btn primary" onClick={() => setEdit({})}><Plus size={16} />Add staff member</button></PageHead>
-      <Notice>{cls === "P" ? "Pharmacy" : `Class ${cls} clinic`}: {roles.length} roles available. New accounts stay inactive until the person opens the emailed link and sets a password.</Notice>
+      <Notice>{cls === "P" ? "Pharmacy" : "Clinic"}: {roles.length} roles available. New accounts stay inactive until the person opens the emailed link and sets a password.</Notice>
       <RoleSettings onChanged={loadRoles} />
       {msg && <Notice tone={msg.tone}>{msg.text}{msg.link && <> <a href={msg.link}>{msg.link}</a></>}</Notice>}
       <div className="panel">

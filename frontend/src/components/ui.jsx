@@ -12,10 +12,11 @@ export const money = (n) => (n == null ? "" : Number(n).toLocaleString(undefined
 
 export const Pill = ({ value, tone, children }) => <span className={`pill ${tone || toneFor(value)}`}>{children || label(value)}</span>;
 
-// The clinic code, styled like a hospital wristband: class letter + code.
-export const Band = ({ code, cls, size }) => (
-  <span className={`band ${cls === "B" ? "b" : cls === "P" ? "p" : ""} ${size || ""}`}><b>{cls}</b><span>{code}</span></span>
-);
+// The clinic code, styled like a hospital wristband. Pharmacies (codes starting PH) get their own colour.
+export const Band = ({ code, size }) => {
+  const ph = String(code || "").toUpperCase().startsWith("PH");
+  return <span className={`band ${ph ? "p" : "b"} ${size || ""}`}><b>{ph ? "Rx" : "+"}</b><span>{code}</span></span>;
+};
 
 export function Modal({ title, onClose, children, wide }) {
   useEffect(() => {
