@@ -14,7 +14,7 @@ import { Activate, ApproveClinic } from "./pages/Links";
 function Guard({ superadmin }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={superadmin ? "/superadmin" : "/login"} replace />;
   if (!!superadmin !== !!user.is_superadmin) return <Navigate to={user.is_superadmin ? "/super" : "/app"} replace />;
   return <Shell />;
 }
@@ -31,6 +31,7 @@ export default function App() {
         <Route path="/clinics/:code" element={<ClinicPage />} />
       </Route>
       <Route path="/login" element={<Login />} />
+      <Route path="/superadmin" element={<Login superadmin />} />
       <Route path="/activate" element={<Activate />} />
       <Route path="/approve-clinic" element={<ApproveClinic />} />
       <Route path="/super/*" element={<Guard superadmin />} />
