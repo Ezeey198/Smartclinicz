@@ -33,6 +33,7 @@ class Clinic(Base):
     stamp_image = Column(Text)        # the clinic's digital stamp as a PNG data URL
     stamp_ink = Column(String(9))     # main ink colour of the stamp, used for the date line
     stamp_updated = Column(DateTime)
+    extra_roles = Column(Text)        # JSON list: optional roles (receptionist, accountant, radiologist) the admin switched on; none by default
     public_profile = Column(Text)     # JSON: what the public page shows (tagline, about, services, locations, visibility)
     created_at = Column(DateTime, default=now)
     users = relationship("User", back_populates="clinic")

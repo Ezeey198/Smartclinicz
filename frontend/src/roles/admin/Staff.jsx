@@ -4,6 +4,7 @@ import api, { errMsg } from "../../api";
 import { useAuth } from "../../auth";
 import { Empty, Notice, PageHead, Pill, Spinner } from "../../components/ui";
 import StaffForm from "./StaffForm";
+import RoleSettings from "./RoleSettings";
 
 const STATE = { active: ["green", "Active"], pending: ["amber", "Awaiting activation"], inactive: ["gray", "Deactivated"] };
 
@@ -14,7 +15,8 @@ export default function Staff() {
   const [edit, setEdit] = useState(null);
   const [msg, setMsg] = useState(null);
   const load = () => api.get("/clinic/users").then((r) => setRows(r.data));
-  useEffect(() => { load(); api.get("/clinic/roles").then((r) => setRoles(r.data)); }, []);
+  const loadRoles = () => api.get("/clinic/roles").then((r) => setRoles(r.data));
+  useEffect(() => { load(); loadRoles(); }, []);
   // After an email-sending action, say plainly if the email did not go out and show the link to share by hand.
   const withMail = (ok, m) => (m && !m.sent
     ? { tone: "error", text: `${ok} But the email to ${m.to} was not sent (${m.error || "email sending is not set up"}). Give them this link:`, link: m.link }
@@ -27,6 +29,7 @@ export default function Staff() {
     <>
       <PageHead title="Staff" sub="Create accounts for your team and choose their roles."><button className="btn primary" onClick={() => setEdit({})}><Plus size={16} />Add staff member</button></PageHead>
       <Notice>{cls === "P" ? "Pharmacy" : `Class ${cls} clinic`}: {roles.length} roles available. New accounts stay inactive until the person opens the emailed link and sets a password.</Notice>
+      <RoleSettings onChanged={loadRoles} />
       {msg && <Notice tone={msg.tone}>{msg.text}{msg.link && <> <a href={msg.link}>{msg.link}</a></>}</Notice>}
       <div className="panel">
         {rows.length === 0 ? <Empty text="No staff yet." /> : (

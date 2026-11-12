@@ -84,7 +84,7 @@ def create_clinic(body: ClinicIn, db: Session = Depends(get_db)):
     data = body.model_dump()
     admin_data = {k: data.pop(k) for k in ["admin_name", "admin_email", "admin_phone"]}
     for _ in range(5):  # the database also enforces unique codes; retry in the rare case of a clash
-        clinic = Clinic(code=_code(db, body.clinic_class), status="pending", approval_token=new_link_token(), **data)
+        clinic = Clinic(code=_code(db, body.clinic_class), status="pending", approval_token=new_link_token(), extra_roles="[]", **data)
         db.add(clinic)
         try:
             db.flush()

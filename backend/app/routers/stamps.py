@@ -17,17 +17,17 @@ from ..subscriptions import iso
 
 # doc type -> (table, module that must be available, name for messages, roles that may stamp it; the clinic admin may stamp everything)
 DOCS = {
-    "invoice": (Invoice, "billing", "invoice", ("accountant", "cashier", "receptionist", "pharmacist")),
-    "receipt": (Payment, "billing", "receipt", ("cashier", "accountant", "pharmacist")),
+    "invoice": (Invoice, "billing", "invoice", ("accountant", "receptionist", "pharmacist")),
+    "receipt": (Payment, "billing", "receipt", ("accountant", "pharmacist")),
     "prescription": (Prescription, "pharmacy", "prescription", ("doctor", "pharmacist")),
     "consultation": (Visit, "visits", "consultation record", ("doctor", "nurse")),
     "lab_report": (LabOrder, "lab", "lab report", ("lab_technician", "doctor")),
     "imaging_report": (ImagingOrder, "imaging", "imaging report", ("radiologist", "doctor")),
     "appointment_slip": (Appointment, "appointments", "appointment slip", ("receptionist", "nurse", "doctor")),
-    "goods_received": (InventoryItem, "inventory", "stock record", ("store_keeper", "pharmacist")),
-    "leave_letter": (LeaveRequest, "hr", "leave letter", ("hr_manager",)),
-    "salary_slip": (SalaryPayment, "payroll", "salary slip", ("hr_manager", "accountant")),
-    "patient_summary": (Patient, "patients", "patient summary", ("records_officer", "doctor", "nurse", "receptionist")),
+    "goods_received": (InventoryItem, "inventory", "stock record", ("pharmacist",)),
+    "leave_letter": (LeaveRequest, "hr", "leave letter", ()),
+    "salary_slip": (SalaryPayment, "payroll", "salary slip", ("accountant",)),
+    "patient_summary": (Patient, "patients", "patient summary", ("doctor", "nurse", "receptionist")),
     "case_file": (Encounter, "cases", "case file", ("doctor", "pharmacist")),
     "sale_receipt": (Sale, "sales", "sale receipt", ("pharmacy_seller",)),
     "expense_voucher": (Expense, "accounts", "expense voucher", ("accountant",)),

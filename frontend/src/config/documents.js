@@ -3,10 +3,10 @@ import { fmtStamp, label, ugx } from "../components/ui";
 import { EVENT_LABEL } from "../components/cases/meta";
 
 export const STAMPERS = {
-  invoice: ["accountant", "cashier", "receptionist", "pharmacist"], receipt: ["cashier", "accountant", "pharmacist"],
+  invoice: ["accountant", "receptionist", "pharmacist"], receipt: ["accountant", "pharmacist"],
   prescription: ["doctor", "pharmacist"], consultation: ["doctor", "nurse"], lab_report: ["lab_technician", "doctor"],
-  imaging_report: ["radiologist", "doctor"], appointment_slip: ["receptionist", "nurse", "doctor"], goods_received: ["store_keeper", "pharmacist"],
-  leave_letter: ["hr_manager"], salary_slip: ["hr_manager", "accountant"], patient_summary: ["records_officer", "doctor", "nurse", "receptionist"],
+  imaging_report: ["radiologist", "doctor"], appointment_slip: ["receptionist", "nurse", "doctor"], goods_received: ["pharmacist"],
+  leave_letter: [], salary_slip: ["accountant"], patient_summary: ["doctor", "nurse", "receptionist"],
   expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist"], sale_receipt: ["pharmacy_seller"],
 };
 

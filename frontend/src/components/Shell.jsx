@@ -13,7 +13,7 @@ import { Band, Notice, fmtStamp, ugx } from "./ui";
 const Logo = () => (
   <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0E7C86" /><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#fff" /></svg>
 );
-const MONEY_ROLES = ["admin", "accountant", "cashier", "pharmacist"];
+const MONEY_ROLES = ["admin", "accountant", "pharmacist"];
 
 // One shell for every signed-in user. What it shows comes from that role's own folder in /roles.
 export default function Shell() {

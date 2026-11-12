@@ -40,7 +40,7 @@ export default function DataPage({ module, endpoint, title, sub, single, empty, 
     const fill = (key, url) => api.get(url).then((r) => setLists((l) => ({ ...l, [key]: r.data }))).catch(() => {});
     if (types.has("patient")) fill("patients", "/patients");
     if (types.has("doctor")) fill("doctors", "/clinic/staff?role=doctor");
-    if (types.has("staff")) fill("staff", "/hr/staff");
+    if (types.has("staff")) fill("staff", "/clinic/staff");
   }, []);
 
   const patch = async (row, body, ok = "Updated.") => {

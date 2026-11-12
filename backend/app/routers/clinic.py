@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from typing import Literal
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -12,7 +13,7 @@ from sqlalchemy import func
 from ..roles import MONEY_ROLES
 from ..models import (Activity, Appointment, Encounter, Product, Sale, SaleLine, StockBatch, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Expense, Patient, Payment,
                       Prescription, User, Visit)
-from ..roles import CLASS_ROLES, ROLE_LABELS, desc_for, label_for, module_level
+from ..roles import DEFAULT_ROLES, ROLE_LABELS, desc_for, enabled_roles, extra_roles, label_for, module_level, optional_roles
 from ..security import new_link_token
 
 router = APIRouter(prefix="/clinic", tags=["clinic"])
@@ -46,7 +47,42 @@ def update_profile(payload: dict = Body(...), user: User = Depends(clinic_admin_
 @router.get("/roles")
 def roles(user: User = Depends(clinic_member)):
     cls = user.clinic.clinic_class
-    return [{"value": r, "label": label_for(r, cls), "description": desc_for(r, cls)} for r in CLASS_ROLES[cls]]
+    return [{"value": r, "label": label_for(r, cls), "description": desc_for(r, cls)} for r in enabled_roles(user.clinic)]
+
+
+@router.get("/role-settings")
+def role_settings(admin: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
+    """Default roles (always on) and the optional roles the admin can switch on, with how many people hold each."""
+    c = admin.clinic
+    on, cls = enabled_roles(c), c.clinic_class
+    people = lambda r: db.query(User).filter(User.clinic_id == c.id, User.role == r).count()
+    row = lambda r, default: {"value": r, "label": label_for(r, cls), "description": desc_for(r, cls), "default": default,
+                              "enabled": r in on, "people": people(r)}
+    return {"defaults": [row(r, True) for r in DEFAULT_ROLES] if cls != "P" else [],
+            "optional": [row(r, False) for r in optional_roles(cls)]}
+
+
+class RolesIn(BaseModel):
+    extra_roles: list[str]
+
+
+@router.put("/role-settings")
+def save_role_settings(body: RolesIn, admin: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
+    c = admin.clinic
+    allowed = optional_roles(c.clinic_class)
+    bad = [r for r in body.extra_roles if r not in allowed]
+    if bad:
+        raise HTTPException(400, f"{ROLE_LABELS.get(bad[0], bad[0])} is not available for Class {c.clinic_class} clinics.")
+    keep = [r for r in allowed if r in body.extra_roles]
+    for r in allowed:
+        if r not in keep and db.query(User).filter(User.clinic_id == c.id, User.role == r).count():
+            raise HTTPException(400, f"{ROLE_LABELS[r]} still has staff. Change or delete those accounts before switching the role off.")
+    before = extra_roles(c)
+    c.extra_roles = json.dumps(keep)
+    if keep != before:
+        log(db, admin, "settings", "updated", f"{admin.full_name} changed the optional roles to: {', '.join(ROLE_LABELS[r] for r in keep) or 'none'}", {"extra_roles": keep})
+    db.commit()
+    return role_settings(admin, db)
 
 
 @router.get("/staff")
@@ -77,8 +113,8 @@ class UserIn(BaseModel):
 
 
 def _check_role(clinic, role):
-    if role not in CLASS_ROLES[clinic.clinic_class]:
-        raise HTTPException(400, f"{ROLE_LABELS.get(role, role)} is not available for Class {clinic.clinic_class} clinics.")
+    if role not in enabled_roles(clinic):
+        raise HTTPException(400, f"{ROLE_LABELS.get(role, role)} is not switched on for this clinic. Turn it on under Staff > Roles first.")
 
 
 def _own(db, admin, uid) -> User:
@@ -126,6 +162,8 @@ def toggle_user(uid: int, admin: User = Depends(clinic_admin_only), db: Session 
     u = _own(db, admin, uid)
     if u.id == admin.id:
         raise HTTPException(400, "You cannot deactivate your own account.")
+    if u.role not in ROLE_LABELS:
+        raise HTTPException(400, "This role no longer exists. Change their role first.")
     if not u.is_active and not u.password_hash:
         raise HTTPException(400, "This person has not approved their account by email yet. Resend the activation link instead.")
     u.is_active = not u.is_active
@@ -198,10 +236,10 @@ def dashboard(user: User = Depends(clinic_member), db: Session = Depends(get_db)
         out["imaging_reported"] = count(ImagingOrder, ImagingOrder.status == "reported")
     if can("billing") or can("accounts"):
         out["invoices_unpaid"] = count(Invoice, Invoice.status != "paid")
-    if user.role in ("admin", "cashier", "accountant") and can("billing"):
+    if user.role in ("admin", "accountant") and can("billing"):
         out["collected"] = total(Invoice.paid, Invoice)
         out["outstanding"] = total(Invoice.amount, Invoice) - out["collected"]
-    if user.role in ("admin", "cashier", "accountant", "pharmacist") and can("billing"):
+    if user.role in ("admin", "accountant", "pharmacist") and can("billing"):
         out["payments_today"] = total(Payment.amount, Payment, Payment.created_at >= start)
     if user.role in MONEY_ROLES:
         out["wallet_balance"] = user.clinic.wallet_balance or 0
@@ -217,7 +255,7 @@ def dashboard(user: User = Depends(clinic_member), db: Session = Depends(get_db)
     if can("hr"):
         out["leave_pending"] = count(LeaveRequest, LeaveRequest.status == "pending")
         out["on_leave"] = count(LeaveRequest, LeaveRequest.status == "approved", LeaveRequest.start_date <= today, LeaveRequest.end_date >= today)
-    if user.role in ("admin", "hr_manager"):
+    if user.role == "admin":
         out["staff"] = count(User)
         out["staff_pending"] = count(User, User.is_active.is_(False))
     return out
