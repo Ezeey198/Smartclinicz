@@ -23,7 +23,7 @@ PROFILE_FIELDS = ["name", "registration_number", "license_number", "email", "pho
 
 
 def _clinic(c):
-    d = {k: getattr(c, k) for k in ["id", "code", "clinic_class", "status"] + PROFILE_FIELDS}
+    d = {k: getattr(c, k) for k in ["id", "code", "clinic_class", "status", "latitude", "longitude"] + PROFILE_FIELDS}
     d["approved_at"] = c.approved_at.isoformat() if c.approved_at else None
     return d
 
@@ -33,9 +33,28 @@ def profile(user: User = Depends(clinic_member)):
     return _clinic(user.clinic)
 
 
+def _coord(v, lo, hi, name):
+    if v is None or str(v).strip() == "":
+        return None
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        raise HTTPException(400, f"{name} must be a number.")
+    if not lo <= x <= hi:
+        raise HTTPException(400, f"{name} must be between {lo:g} and {hi:g}.")
+    return round(x, 6)
+
+
 @router.patch("/profile")
 def update_profile(payload: dict = Body(...), user: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
     c = user.clinic
+    if "latitude" in payload or "longitude" in payload:       # the exact location: both numbers, or neither
+        lat, lng = _coord(payload.get("latitude"), -90, 90, "Latitude"), _coord(payload.get("longitude"), -180, 180, "Longitude")
+        if (lat is None) != (lng is None):
+            raise HTTPException(400, "Give both latitude and longitude, or leave both empty.")
+        if (lat, lng) != (c.latitude, c.longitude):
+            log(db, user, "settings", "updated", f"{user.full_name} {'set' if lat is not None else 'cleared'} the exact location of the clinic", {"latitude": lat, "longitude": lng})
+        c.latitude, c.longitude = lat, lng
     for k in PROFILE_FIELDS:
         if k in payload and (k != "name" or payload[k]):
             setattr(c, k, payload[k] or None)

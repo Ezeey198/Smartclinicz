@@ -6,6 +6,7 @@ import api, { errMsg } from "../../api";
 import { resizeImage } from "../../components/imageTools";
 import { mediaUrl } from "../../pages/public/media";
 import { Input, Notice, PageHead, Spinner } from "../../components/ui";
+import LocationDetect, { coordOrNull } from "../../components/LocationDetect";
 
 export default function PublicPage() {
   const [d, setD] = useState(null);
@@ -20,13 +21,14 @@ export default function PublicPage() {
 
   const flash = (tone, text) => setMsg({ tone, text });
   const set = (k) => (e) => setP({ ...p, [k]: e.target.value });
+  const setLoc = (i, patch) => setP({ ...p, locations: p.locations.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   const upd = (list, i, k, val) => setP({ ...p, [list]: p[list].map((x, j) => (j === i ? { ...x, [k]: val } : x)) });
   const add = (list, blank) => setP({ ...p, [list]: [...p[list], blank] });
   const del = (list, i) => setP({ ...p, [list]: p[list].filter((_, j) => j !== i) });
 
   const save = async () => {
     setBusy("save");
-    try { const { data } = await api.put("/clinic/public", { ...p, services: p.services.filter((s) => s.name.trim()), locations: p.locations.filter((l) => l.address.trim()) }); setD(data); setP(data.profile); flash("success", "Saved. The public page is updated."); }
+    try { const { data } = await api.put("/clinic/public", { ...p, services: p.services.filter((s) => s.name.trim()), locations: p.locations.filter((l) => l.address.trim()).map((l) => ({ ...l, latitude: coordOrNull(l.latitude), longitude: coordOrNull(l.longitude) })) }); setD(data); setP(data.profile); flash("success", "Saved. The public page is updated."); }
     catch (x) { flash("error", errMsg(x)); } finally { setBusy(""); }
   };
   const photos = async (e) => {
@@ -84,11 +86,12 @@ export default function PublicPage() {
               <Input full label="Street address" value={l.address} onChange={(e) => upd("locations", i, "address", e.target.value)} />
               <Input label="Opening hours" value={l.hours || ""} onChange={(e) => upd("locations", i, "hours", e.target.value)} />
               <Input label="Phone" value={l.phone || ""} onChange={(e) => upd("locations", i, "phone", e.target.value)} />
-              <Input full label="Map link (optional)" value={l.map_url || ""} onChange={(e) => upd("locations", i, "map_url", e.target.value)} hint="Paste a Google Maps link if you want directions to use an exact pin." />
+              <Input full label="Map link (optional)" value={l.map_url || ""} onChange={(e) => upd("locations", i, "map_url", e.target.value)} hint="Optional. If you detect the exact location below, it is used instead." />
+              <div className="full"><LocationDetect latitude={l.latitude} longitude={l.longitude} onChange={(la, lo) => setLoc(i, { latitude: la, longitude: lo })} /></div>
             </div>
             <button className="btn danger sm" onClick={() => del("locations", i)}>Remove this location</button>
           </div>))}
-        <button className="btn ghost sm" onClick={() => add("locations", { label: "", address: "", city: "", hours: "", phone: "", map_url: "" })}>+ Add location</button>
+        <button className="btn ghost sm" onClick={() => add("locations", { label: "", address: "", city: "", hours: "", phone: "", map_url: "", latitude: null, longitude: null })}>+ Add location</button>
       </div>
       <div className="row" style={{ margin: "16px 0" }}><button className="btn primary" onClick={save} disabled={busy === "save"}>Save details</button></div>
 

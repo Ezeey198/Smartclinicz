@@ -1,7 +1,7 @@
 """A clinic's or pharmacy's own admin manages what its public page shows: text, services, locations, photos and videos."""
 import json
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session, defer
 from ..activity import log
 from ..database import get_db
@@ -25,6 +25,14 @@ class Location(BaseModel):
     hours: str | None = Field(default=None, max_length=300)
     phone: str | None = Field(default=None, max_length=50)
     map_url: str | None = Field(default=None, max_length=500)
+    latitude: float | None = Field(default=None, ge=-90, le=90)       # exact position, detected by the admin
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def _both_or_neither(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Give both latitude and longitude, or leave both empty.")
+        return self
 
 
 class ProfileIn(BaseModel):

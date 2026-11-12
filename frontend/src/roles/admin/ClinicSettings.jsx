@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api, { errMsg } from "../../api";
 import { Band, Input, Notice, PageHead, Spinner } from "../../components/ui";
+import LocationDetect, { coordOrNull } from "../../components/LocationDetect";
 
 const FIELDS = [["name", "Clinic name", true], ["registration_number", "Registration number"], ["license_number", "Health licence number"], ["email", "Clinic email"],
   ["phone", "Clinic phone"], ["website", "Website"], ["address", "Street address", true], ["city", "Town or city"], ["district", "District or region"], ["country", "Country"]];
@@ -13,7 +14,7 @@ export default function ClinicSettings() {
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const save = async (e) => {
     e.preventDefault();
-    try { setF((await api.patch("/clinic/profile", f)).data); setMsg({ tone: "success", text: "Clinic details saved." }); } catch (x) { setMsg({ tone: "error", text: errMsg(x) }); }
+    try { setF((await api.patch("/clinic/profile", { ...f, latitude: coordOrNull(f.latitude), longitude: coordOrNull(f.longitude) })).data); setMsg({ tone: "success", text: "Clinic details saved." }); } catch (x) { setMsg({ tone: "error", text: errMsg(x) }); }
   };
   return (
     <>
@@ -24,6 +25,8 @@ export default function ClinicSettings() {
         <form onSubmit={save}>
           <div className="grid2">{FIELDS.map(([k, l, full]) => <Input key={k} full={full} label={l} value={f[k] || ""} onChange={set(k)} />)}
             <Input full label="About the clinic"><textarea className="input" rows={3} value={f.description || ""} onChange={set("description")} /></Input></div>
+          <h3 className="section">Exact location</h3>
+          <LocationDetect latitude={f.latitude} longitude={f.longitude} onChange={(la, lo) => setF({ ...f, latitude: la, longitude: lo })} />
           {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
           <div className="modal-foot"><button className="btn primary">Save clinic details</button></div>
         </form>

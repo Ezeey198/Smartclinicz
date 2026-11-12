@@ -24,6 +24,8 @@ class Clinic(Base):
     district = Column(String(100))
     country = Column(String(100))
     description = Column(Text)
+    latitude = Column(Float)           # exact position of the clinic, detected by the admin on their device (or typed)
+    longitude = Column(Float)
     status = Column(String(20), default="pending")  # pending | active | suspended
     approval_token = Column(String(80), index=True)
     approved_at = Column(DateTime)

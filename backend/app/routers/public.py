@@ -113,7 +113,7 @@ def clinic_page(code: str, db: Session = Depends(get_db)):
     c = _visible(db, code)
     p = profile_of(c)
     photos, videos = media_of(db, c.id)
-    locations = p["locations"] or [{"label": "Main location", "address": c.address or "", "city": c.city or "", "hours": p["hours"], "phone": c.phone or "", "map_url": ""}]
+    locations = p["locations"] or [{"label": "Main location", "address": c.address or "", "city": c.city or "", "hours": p["hours"], "phone": c.phone or "", "map_url": "", "latitude": c.latitude, "longitude": c.longitude}]
     return {"code": c.code, "name": c.name, "type": "pharmacy" if c.clinic_class == "P" else "clinic", "clinic_class": c.clinic_class,
             "tagline": p["tagline"], "about": p["about"] or c.description or "", "hours": p["hours"], "services": p["services"], "locations": locations,
             "contact": {"phone": c.phone, "email": c.email, "website": c.website} if p["show_contact"] else None,
