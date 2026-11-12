@@ -6,7 +6,7 @@ export const STAMPERS = {
   invoice: ["accountant", "receptionist", "pharmacist"], receipt: ["accountant", "pharmacist"],
   prescription: ["doctor", "pharmacist"], consultation: ["doctor", "nurse"], lab_report: ["lab_technician", "doctor"],
   imaging_report: ["radiologist", "doctor"], appointment_slip: ["receptionist", "nurse", "doctor"], goods_received: ["pharmacist"],
-  leave_letter: [], salary_slip: ["accountant"], patient_summary: ["doctor", "nurse", "receptionist"],
+  leave_letter: [], salary_slip: ["accountant"], patient_summary: ["doctor", "nurse", "receptionist"], medical_record: ["doctor", "nurse"],
   expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist"], sale_receipt: ["pharmacy_seller"],
 };
 
@@ -52,6 +52,22 @@ export const DOCS = {
     meta: [["Name", r.full_name], ["Patient no.", r.patient_no], ["Gender", r.gender], ["Date of birth", r.date_of_birth]],
     sections: [{ rows: [["Phone", r.phone], ["Address", r.address], ["Blood group", r.blood_group], ["Next of kin", [r.next_of_kin, r.next_of_kin_phone].filter(Boolean).join(" · ")]] },
       { heading: "Known allergies", text: r.allergies }] }),
+  // The whole patient file as one stampable document. It lists only the parts the person's role is allowed to see.
+  medical_record: (f) => {
+    const p = f.patient, d = (v) => (v ? fmtStamp(v) : "-");
+    const table = (heading, key, cols, row) => (f[key] && f[key].length ? { heading, table: { cols, rows: f[key].map(row) } } : null);
+    return { type: "medical_record", id: p.id, ref: p.patient_no, title: "Patient medical record",
+      meta: [["Name", p.full_name], ["Patient no.", p.patient_no], ["Gender", p.gender], ["Date of birth", p.date_of_birth]],
+      sections: [
+        { rows: [["Phone", p.phone], ["Address", p.address], ["Blood group", p.blood_group], ["Next of kin", [p.next_of_kin, p.next_of_kin_phone].filter(Boolean).join(" · ")]] },
+        { heading: "Known allergies", text: p.allergies },
+        table("Consultations", "visits", ["Date", "Complaints", "Diagnosis", "Treatment", "By"], (r) => [d(r.created_at), r.complaints, r.diagnosis, r.treatment_notes, r.recorded_by]),
+        table("Laboratory", "lab", ["Date", "Test", "Result", "Status"], (r) => [d(r.created_at), r.test_name, r.result, label(r.status)]),
+        table("Prescriptions", "pharmacy", ["Date", "Drug", "Dosage", "Duration", "Status"], (r) => [d(r.created_at), r.drug, r.dosage, r.duration, label(r.status)]),
+        table("Imaging", "imaging", ["Date", "Exam", "Area", "Report"], (r) => [d(r.created_at), r.exam_type, r.body_part, r.findings]),
+        table("Case files", "cases", ["Case", "Opened", "Doctor", "Diagnosis", "Stage"], (r) => [r.case_no, d(r.created_at), r.doctor_name, r.diagnosis, label(r.stage)]),
+      ].filter(Boolean) };
+  },
   expense_voucher: (r) => ({ type: "expense_voucher", id: r.id, ref: `EXP ${String(r.id).padStart(5, "0")}`, title: "Expense voucher",
     meta: [["Date", r.expense_date || when(r)], ["Category", r.category], ["Recorded by", r.recorded_by], ["Paid from", r.paid_from_wallet ? "Clinic wallet" : "Outside the wallet"]],
     sections: [{ heading: "Description", text: r.description }, { rows: [["Amount", money(r.amount)]] }] }),

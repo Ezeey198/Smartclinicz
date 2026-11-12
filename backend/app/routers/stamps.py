@@ -28,6 +28,7 @@ DOCS = {
     "leave_letter": (LeaveRequest, "hr", "leave letter", ()),
     "salary_slip": (SalaryPayment, "payroll", "salary slip", ("accountant",)),
     "patient_summary": (Patient, "patients", "patient summary", ("doctor", "nurse", "receptionist")),
+    "medical_record": (Patient, "patients", "medical record", ("doctor", "nurse")),   # the whole patient file: consultations, lab, drugs, imaging, cases
     "case_file": (Encounter, "cases", "case file", ("doctor", "pharmacist")),
     "sale_receipt": (Sale, "sales", "sale receipt", ("pharmacy_seller",)),
     "expense_voucher": (Expense, "accounts", "expense voucher", ("accountant",)),

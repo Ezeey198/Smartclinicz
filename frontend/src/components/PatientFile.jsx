@@ -6,6 +6,7 @@ import { DOCS, STAMPERS } from "../config/documents";
 import { useAuth } from "../auth";
 import DocumentModal from "./DocumentModal";
 import { Empty, Notice, PageHead, Pill, Spinner, fmtDate } from "./ui";
+import { STAGE_LABEL } from "./cases/meta";
 
 const SECTIONS = [
   ["visits", "Consultations", [["created_at", "Date", "d"], ["complaints", "Complaints"], ["diagnosis", "Diagnosis"], ["treatment_notes", "Treatment"], ["recorded_by", "By"]]],
@@ -24,6 +25,10 @@ export default function PatientFile() {
   const [doc, setDoc] = useState(null);
   useEffect(() => { api.get("/patients").then((r) => setPatients(r.data)).catch((e) => setErr(errMsg(e))); }, []);
 
+  const openCase = async (id) => {                       // fetch the whole case file, then show it ready to print and stamp
+    setErr("");
+    try { setDoc(DOCS.case_file((await api.get(`/cases/${id}`)).data)); } catch (e) { setErr(errMsg(e)); }
+  };
   const open = async (id) => {
     setFile(null); setErr("");
     try { setFile((await api.get(`/records/patient/${id}`)).data); } catch (e) { setErr(errMsg(e)); }
@@ -34,7 +39,8 @@ export default function PatientFile() {
   return (
     <>
       <PageHead title="Patient files" sub="Search for a patient to see everything recorded about them.">
-        {file && (user.role === "admin" || STAMPERS.patient_summary.includes(user.role)) && <button className="btn ghost" onClick={() => setDoc(DOCS.patient_summary(file.patient))}><StampIcon size={16} />Print and stamp summary</button>}
+        {file && (user.role === "admin" || STAMPERS.medical_record.includes(user.role)) && <button className="btn primary" onClick={() => setDoc(DOCS.medical_record(file))}><StampIcon size={16} />Print and stamp medical record</button>}
+        {file && (user.role === "admin" || STAMPERS.patient_summary.includes(user.role)) && <button className="btn ghost" onClick={() => setDoc(DOCS.patient_summary(file.patient))}><StampIcon size={16} />Summary</button>}
         {file && <button className="btn ghost" onClick={() => window.print()}><Printer size={16} />Print</button>}
       </PageHead>
       {err && <Notice tone="error">{err}</Notice>}
@@ -54,6 +60,19 @@ export default function PatientFile() {
               <dt>Next of kin</dt><dd>{[p.next_of_kin, p.next_of_kin_phone].filter(Boolean).join(" · ") || "—"}</dd>
             </dl>
           </div>
+          {file.cases && (
+            <>
+              <h3 className="section">Case files</h3>
+              <div className="panel">
+                {file.cases.length === 0 ? <Empty text="No cases recorded." /> : (
+                  <div className="scroll"><table className="table"><thead><tr><th>Case</th><th>Opened</th><th>Doctor</th><th>Diagnosis</th><th>Stage</th><th className="no-print" /></tr></thead>
+                    <tbody>{file.cases.map((c, i) => (
+                      <tr key={c.id}><td><b>{c.case_no}</b>{i === 0 && <> <Pill tone="blue">Latest</Pill></>}</td><td>{fmtDate(c.created_at)}</td><td>{c.doctor_name}</td><td>{c.diagnosis}</td><td><Pill value={c.stage}>{STAGE_LABEL[c.stage]}</Pill></td>
+                        <td className="no-print"><button className="btn ghost sm" onClick={() => openCase(c.id)}><StampIcon size={14} />Print and stamp case file</button></td></tr>))}</tbody></table></div>
+                )}
+              </div>
+            </>
+          )}
           {SECTIONS.filter(([k]) => file[k]).map(([k, title, cols]) => (
             <div key={k}>
               <h3 className="section">{title}</h3>
