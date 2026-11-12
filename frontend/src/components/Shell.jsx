@@ -42,7 +42,7 @@ export default function Shell() {
       <div className="brand dark">ClinicPro</div>
       <h2>This website is out of date</h2>
       <p>The server knows your role ("{user.role}") but this copy of the website does not. The website needs to be redeployed from the latest files.</p>
-      <button className="btn primary" onClick={() => { logout(); nav("/login"); }}>Sign out</button>
+      <button className="btn primary" onClick={() => { logout(); nav("/"); }}>Sign out</button>
     </div></div>
   );
   const items = cfg.nav.filter((i) => !i.module || user.modules?.[i.module]);
@@ -71,7 +71,7 @@ export default function Shell() {
         </nav>
         <div className="me">
           <div><b>{user.full_name}</b><small>{user.role_label}</small></div>
-          <button className="icon-btn light" title="Sign out" aria-label="Sign out" onClick={() => { logout(); nav("/login"); }}><Icons.LogOut size={18} /></button>
+          <button className="icon-btn light" title="Sign out" aria-label="Sign out" onClick={() => { logout(); nav("/"); }}><Icons.LogOut size={18} /></button>
         </div>
       </aside>
       <main className="main">

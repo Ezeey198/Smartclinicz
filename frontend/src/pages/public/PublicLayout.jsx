@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth";
 
@@ -10,19 +10,28 @@ const Logo = () => (
 export default function PublicLayout() {
   const { user } = useAuth();
   const nav = useNavigate();
-  const taps = useRef({ n: 0, last: 0 });
-  // Six or more quick, consecutive clicks on the ClinicPro name open the superadmin sign-in. Nothing on the page points to it.
-  const tap = () => {
-    const now = Date.now(), t = taps.current;
-    t.n = now - t.last < 2000 ? t.n + 1 : 1;
-    t.last = now;
-    if (t.n >= 6) { t.n = 0; nav("/superadmin"); }
-  };
+  const go = useRef(nav);
+  go.current = nav;
+  // Six or more quick, consecutive taps or clicks anywhere on the public pages (the landing page included) open the superadmin sign-in.
+  // Each one must come within 3 seconds of the one before. Nothing on the page points to it.
+  // Listens on the whole document for pointer events, which fire for mouse and touch alike, even on empty areas of the page.
+  useEffect(() => {
+    const t = { n: 0, last: 0 };
+    const tap = (e) => {
+      if (e.button > 0) return;                       // left mouse button or a finger only
+      const now = Date.now();
+      t.n = now - t.last < 3000 ? t.n + 1 : 1;
+      t.last = now;
+      if (t.n >= 6) { t.n = 0; setTimeout(() => go.current("/superadmin"), 60); }   // after any link under the finger has done its own navigation
+    };
+    document.addEventListener("pointerup", tap, true);
+    return () => document.removeEventListener("pointerup", tap, true);
+  }, []);
   return (
     <div className="pub">
       <header className="pub-head">
         <nav className="pub-nav"><NavLink to="/about">About</NavLink><NavLink to="/clinics">Clinics</NavLink></nav>
-        <Link to="/" className="pub-brand" onClick={tap}><Logo /><span>ClinicPro</span></Link>
+        <Link to="/" className="pub-brand"><Logo /><span>ClinicPro</span></Link>
         <div className="pub-right">
           {user ? <Link className="btn primary" to={user.is_superadmin ? "/super" : "/app"}>Open my workspace</Link> : <Link className="btn primary" to="/login">Sign in</Link>}
         </div>
