@@ -18,19 +18,23 @@ api.interceptors.request.use((c) => {
   return c;
 });
 
+// Only the signed-in workspace (/app, /super) is sent to the sign-in page. The public website, including the landing page, never is.
+const signInPage = () => (window.location.pathname.startsWith("/super") ? "/superadmin" : "/login");
+const inWorkspace = () => /^\/(app|super)(\/|$)/.test(window.location.pathname);
+
 api.interceptors.response.use(
   (r) => r,
   (e) => {
     const url = e.config?.url || "";
     if (e.response?.status === 401 && store.get(TOKEN_KEY) && !url.includes("/auth/login")) {
       store.del(TOKEN_KEY);
-      window.location.href = "/login";
+      if (inWorkspace()) window.location.href = signInPage();
     }
     if (e.response?.status === 403 && String(e.response?.data?.detail || "").includes("deactivated by the system administrator") && store.get(TOKEN_KEY)) {
       store.del(TOKEN_KEY);
-      window.location.assign("/login");
+      if (inWorkspace()) window.location.assign(signInPage());
     }
-    if (e.response?.status === 402 && store.get(TOKEN_KEY)) window.location.assign("/app");
+    if (e.response?.status === 402 && store.get(TOKEN_KEY) && inWorkspace()) window.location.assign("/app");
     return Promise.reject(e);
   }
 );

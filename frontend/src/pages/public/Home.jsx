@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api";
-import { Spinner } from "../../components/ui";
 import PlaceCard from "./PlaceCard";
 
 export default function Home() {
-  const [about, setAbout] = useState(null);
+  const [about, setAbout] = useState(false);   // the page draws at once with the default text; the server's text replaces it when it arrives
   const [places, setPlaces] = useState([]);
   useEffect(() => { api.get("/public/about").then((r) => setAbout(r.data)).catch(() => setAbout(false)); api.get("/public/clinics").then((r) => setPlaces(r.data.slice(0, 3))).catch(() => {}); }, []);
-  if (about === null) return <Spinner />;
-  const a = about || { headline: "One system for clinics and pharmacies", intro: "", sections: [] };
+  const a = about || { headline: "One system for clinics and pharmacies",
+    intro: "ClinicPro helps clinics and pharmacies run patient care, stock, billing and staff in one place, and lets the public find them online.", sections: [] };
   return (
     <>
       <section className="pub-hero">
