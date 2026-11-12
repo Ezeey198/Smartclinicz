@@ -3,7 +3,7 @@ import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "reac
 import * as Icons from "lucide-react";
 import api from "../api";
 import { useAuth } from "../auth";
-import { REGISTRY } from "../roles/registry";
+import { REGISTRY} from "../roles/registry"
 import expiredAdmin from "../roles/admin/expired";
 import Inactive from "./Inactive";
 import SubscriptionBanner from "./SubscriptionBanner";
