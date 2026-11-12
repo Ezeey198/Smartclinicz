@@ -2,9 +2,13 @@ import axios from "axios";
 import { store } from "./storage";
 
 export const TOKEN_KEY = "clinicpro_token";
-// In development the Vite proxy forwards /api. Online, set VITE_API_URL to the backend's address (https://your-api.example.com).
+// Where the backend lives. Order: VITE_API_URL if it is set, otherwise the Vercel backend project when the website is opened from
+// any real address, otherwise "/api" (local development, where the Vite proxy forwards it).
+const BACKEND_URL = "https://smartclinicz.vercel.app";
 let origin = (import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
 if (origin && !/^https?:\/\//.test(origin)) origin = "https://" + origin;
+const onThisComputer = typeof window !== "undefined" && /^(localhost$|127\.|192\.168\.|10\.)/.test(window.location.hostname);
+if (!origin && !onThisComputer) origin = BACKEND_URL;
 export const API_BASE = origin ? `${origin}/api` : "/api";
 const api = axios.create({ baseURL: API_BASE });
 
@@ -32,6 +36,7 @@ api.interceptors.response.use(
 );
 
 export const errMsg = (e) => {
+  if (e.response?.status === 413) return "That file is too large for the server. Use a smaller file, or add a YouTube or Vimeo link for videos.";
   const d = e.response?.data?.detail;
   if (!d) return e.message || "Something went wrong. Try again.";
   if (typeof d === "string") return d;

@@ -41,7 +41,7 @@ def _secret_key() -> str:
     return key
 
 
-APP_VERSION = "2026-11-05.1"   # keep equal to frontend/src/version.js
+APP_VERSION = "2026-11-10.1"   # keep equal to frontend/src/version.js
 
 
 class Settings:
@@ -69,10 +69,10 @@ class Settings:
     AIRTEL_COUNTRY = os.getenv("AIRTEL_COUNTRY", "UG")
     AIRTEL_CURRENCY = os.getenv("AIRTEL_CURRENCY", "UGX")
     DATABASE_URL = _db_url()
-    FRONTEND_URL = _env("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    FRONTEND_URL = _env("FRONTEND_URL", "https://smartclinicz-s8pb.vercel.app").rstrip("/")
     # Extra websites allowed to call this API, comma separated (the FRONTEND_URL is always allowed). "*" allows any site.
     CORS_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
-    CORS_ORIGIN_REGEX = _env("CORS_ORIGIN_REGEX")   # e.g. https://.*\.vercel\.app to also allow preview deployments
+    CORS_ORIGIN_REGEX = _env("CORS_ORIGIN_REGEX", r"https://smartclinicz[a-z0-9-]*\.vercel\.app")   # e.g. https://.*\.vercel\.app to also allow preview deployments
     SMTP_HOST = _env("SMTP_HOST")
     SMTP_PORT = int(_env("SMTP_PORT", "587") or 587)
     SMTP_SECURITY = (_env("SMTP_SECURITY", "starttls") or "starttls").lower()  # starttls (587) | ssl (465) | none
