@@ -25,6 +25,12 @@ export default function Login({ superadmin = false }) {
 
   return (
     <div className="auth">
+      <section className="auth-art">
+        <div className="brand">ClinicPro</div>
+        <h1>{superadmin ? "System administration." : "Your clinic opens with its code."}</h1>
+        <p>{superadmin ? "Register clinics and pharmacies, approve them and watch subscriptions." : "Every clinic gets its own code. Your clinic admin shares it when your account is created. Keep it handy, like a wristband."}</p>
+        {!superadmin && <div className="band-demo"><Band code="CL-XXXXXX" size="xl" /><Band code="PH-XXXXXX" size="xl" /></div>}
+      </section>
       <section className="auth-form">
         <form onSubmit={submit}>
           <h2>{superadmin ? "Superadmin sign in" : "Sign in"}</h2>
