@@ -22,7 +22,7 @@ export default function PublicLayout() {
       const now = Date.now();
       t.n = now - t.last < 3000 ? t.n + 1 : 1;
       t.last = now;
-      if (t.n >= 6) { t.n = 0; setTimeout(() => go.current("/superadmin"), 60); }   // after any link under the finger has done its own navigation
+      if (t.n >= 10) { t.n = 0; setTimeout(() => go.current("/superadmin"), 60); }   // after any link under the finger has done its own navigation
     };
     document.addEventListener("pointerup", tap, true);
     return () => document.removeEventListener("pointerup", tap, true);
