@@ -65,9 +65,9 @@ export default function DocumentModal({ doc, onClose }) {
             <footer className="doc-foot">
               <div className="stamps">
                 {uses.length === 0 ? <p className="doc-unstamped">Not stamped yet</p> : uses.map((u) => (
-                  <Stamp key={u.id} image={stamp.image} ink={stamp.ink} date={u.stamped_at} name={u.user_name} role={u.role_label} />))}
+                  <Stamp key={u.id} image={stamp.image} ink={stamp.ink} date={u.stamped_at} clinic={clinic.name} />))}
               </div>
-              <p className="doc-printed">Printed {fmtStampDate()} by {user.full_name}</p>
+              <p className="doc-printed">Printed {fmtStampDate()}</p>
             </footer>
           </div>
         </>
