@@ -2,15 +2,20 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api";
 import PlaceCard from "./PlaceCard";
+import Slideshow from "./Slideshow";
 
 export default function Home() {
   const [about, setAbout] = useState(false);   // the page draws at once with the default text; the server's text replaces it when it arrives
   const [places, setPlaces] = useState([]);
+  const [show, setShow] = useState(false);       // true once there are clinic photos to play
+  useEffect(() => { document.documentElement.classList.toggle("has-show", show); return () => document.documentElement.classList.remove("has-show"); }, [show]);
   useEffect(() => { api.get("/public/about").then((r) => setAbout(r.data)).catch(() => setAbout(false)); api.get("/public/clinics").then((r) => setPlaces(r.data.slice(0, 3))).catch(() => {}); }, []);
   const a = about || { headline: "One system for clinics and pharmacies",
     intro: "ClinicPro helps clinics and pharmacies run patient care, stock, billing and staff in one place, and lets the public find them online.", sections: [] };
   return (
     <>
+      <Slideshow onReady={setShow} />
+      <div className="home-stage">
       <section className="pub-hero">
         <div className="pub-wrap">
           <h1>{a.headline}</h1>
@@ -20,15 +25,18 @@ export default function Home() {
       </section>
       {a.sections.length > 0 && (
         <section className="pub-wrap pub-section">
-          <div className="pub-features">{a.sections.slice(0, 4).map((s) => <div key={s.heading}><h3>{s.heading}</h3><p>{s.text}</p></div>)}</div>
+          <div className="pub-features glass">{a.sections.slice(0, 4).map((s) => <div key={s.heading}><h3>{s.heading}</h3><p>{s.text}</p></div>)}</div>
         </section>
       )}
       {places.length > 0 && (
         <section className="pub-wrap pub-section">
-          <div className="pub-row"><h2>Places on ClinicPro</h2><Link to="/clinics">See all</Link></div>
-          <div className="place-grid">{places.map((c) => <PlaceCard key={c.code} c={c} />)}</div>
+          <div className="glass">
+            <div className="pub-row"><h2>Places on ClinicPro</h2><Link to="/clinics">See all</Link></div>
+            <div className="place-grid">{places.map((c) => <PlaceCard key={c.code} c={c} />)}</div>
+          </div>
         </section>
       )}
+      </div>
     </>
   );
 }
