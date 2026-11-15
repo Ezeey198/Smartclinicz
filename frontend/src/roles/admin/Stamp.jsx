@@ -79,8 +79,8 @@ export default function ClinicStamp() {
           <h3 style={{ marginBottom: 12 }}>2. How it will look on a document</h3>
           {(result || saved.has_stamp) ? (
             <>
-              <div className="stamp-preview"><Stamp image={result ? result.dataUrl : saved.image} ink={result ? result.ink : saved.ink} name={user.full_name} role={user.role_label} /></div>
-              <p className="hint">Today's date is added automatically each time someone stamps a document, and the name of the person who stamps goes underneath.</p>
+              <div className="stamp-preview"><Stamp image={result ? result.dataUrl : saved.image} ink={result ? result.ink : saved.ink} clinic={user.clinic?.name} /></div>
+              <p className="hint">Today's date is added automatically each time a document is stamped, with the clinic name underneath. No staff name is printed on documents. The stamp history below still records who stamped what.</p>
               {result && <button className="btn primary" onClick={save} disabled={busy}>{busy ? "Saving…" : saved.has_stamp ? "Replace the clinic stamp" : "Save as the clinic stamp"}</button>}
               {saved.has_stamp && !result && <button className="btn danger" onClick={remove}><Trash2 size={16} />Remove stamp</button>}
             </>

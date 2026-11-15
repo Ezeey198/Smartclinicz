@@ -14,12 +14,7 @@ export default {
     { to: "/app", label: "Dashboard", icon: "LayoutDashboard", end: true },
     { to: "/app/desk", label: "Patient desk", icon: "ClipboardPlus", module: "cases" },
     { to: "/app/appointments", label: "My appointments", icon: "CalendarDays" },
-    { to: "/app/consultations", label: "Consultations", icon: "Stethoscope" },
-    { to: "/app/lab", label: "Lab requests", icon: "FlaskConical" },
-    { to: "/app/prescriptions", label: "Prescriptions", icon: "Pill" },
-    { to: "/app/imaging", label: "Imaging requests", icon: "ScanLine", module: "imaging" },
     { to: "/app/files", label: "Patient files", icon: "FolderOpen" },
-    { to: "/app/wallet", label: "My wallet", icon: "Wallet" },
     { to: "/app/account", label: "My account", icon: "CircleUser" },
   ],
   routes: [

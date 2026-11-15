@@ -61,12 +61,13 @@ export const labFields = [
   { name: "status", label: "Status", type: "select", options: LAB_STATUS },
   { name: "notes", label: "Clinical notes", type: "textarea", full: true },
   { name: "result", label: "Result", type: "textarea", full: true },
+  { name: "fee", label: "Fee (UGX, can be 0)", type: "number" },
 ];
 export const labRequestFields = by(labFields, ["patient_id", "test_name", "notes"]);
 export const labColumns = [
   { key: "created_at", label: "Requested", type: "date" }, { key: "patient_name", label: "Patient", strong: true },
   { key: "case_no", label: "Case", render: (r) => (r.case_no ? <b>{r.case_no}</b> : <span className="sub">Walk-in</span>) },
-  { key: "test_name", label: "Test" }, { key: "requested_by", label: "Requested by" }, payCol, { key: "status", label: "Status", pill: true },
+  { key: "test_name", label: "Test" }, { key: "fee", label: "Fee", render: (r) => (r.fee == null ? <span className="sub">Not set</span> : Number(r.fee).toLocaleString()) }, payCol, { key: "status", label: "Status", pill: true },
 ];
 export const labResultColumns = [...labColumns.slice(0, 4), { key: "result", label: "Result" }, payCol, { key: "status", label: "Status", pill: true }];
 
@@ -85,7 +86,7 @@ export const rxColumns = [
 
 export const stockFields = [
   { name: "name", label: "Item name", required: true, full: true },
-  { name: "category", label: "Category", type: "select", options: ["Medicine", "Supplies", "Equipment", "Consumables", "Other"] },
+  { name: "category", label: "Category", type: "select", options: ["Medicine", "Supplies", "Equipment", "Consumables", "Laboratory equipment", "Laboratory reagent", "Laboratory chemical", "Other"] },
   { name: "unit", label: "Unit (packs, boxes…)" },
   { name: "quantity", label: "Quantity in stock", type: "number", required: true },
   { name: "reorder_level", label: "Reorder level", type: "number" },

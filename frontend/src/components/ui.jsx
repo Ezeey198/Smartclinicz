@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import VoiceMic from "./VoiceMic";
 import { X, Inbox } from "lucide-react";
 
 const TONES = { scheduled: "amber", requested: "amber", pending: "amber", unpaid: "amber", partial: "blue", checked_in: "blue",
@@ -43,11 +44,16 @@ export const Empty = ({ text, children }) => (
 );
 export const Spinner = () => <div className="splash"><div className="spin" /></div>;
 
-export function Input({ label: l, full, hint, children, ...p }) {
+// A labelled field. Every field made with it has a Speak button (voice transcription), except passwords, emails, dates and choices.
+export function Input({ label: l, full, hint, children, voice = true, ...p }) {
+  const box = useRef(null);
   return (
-    <label className={`fld ${full ? "full" : ""}`}>
+    <label className={`fld ${full ? "full" : ""}`} ref={box}>
       <span>{l}</span>
-      {children || <input className="input" {...p} />}
+      <span className="vrow">
+        {children || <input className="input" {...p} />}
+        {voice && <VoiceMic getControl={() => box.current?.querySelector("textarea, input, select")} />}
+      </span>
       {hint && <small>{hint}</small>}
     </label>
   );

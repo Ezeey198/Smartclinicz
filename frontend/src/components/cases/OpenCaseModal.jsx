@@ -3,24 +3,34 @@ import { useEffect, useState } from "react";
 import api, { errMsg } from "../../api";
 import { Input, Modal, Notice } from "../ui";
 
-export default function OpenCaseModal({ onClose, onDone }) {
+export default function OpenCaseModal({ onClose, onDone, reception = false }) {
   const [mode, setMode] = useState("existing");
   const [patients, setPatients] = useState([]);
   const [q, setQ] = useState("");
   const [pid, setPid] = useState("");
-  const [f, setF] = useState({ full_name: "", gender: "", date_of_birth: "", phone: "", address: "", next_of_kin: "", next_of_kin_phone: "", blood_group: "", allergies: "" });
+  const [f, setF] = useState({ full_name: "", gender: "", date_of_birth: "", phone: "", address: "", next_of_kin: "", next_of_kin_phone: "", blood_group: "", allergies: "", email: "" });
+  const [doctors, setDoctors] = useState([]);
+  const [doctorId, setDoctorId] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { api.get("/patients").then((r) => setPatients(r.data)); }, []);
+  useEffect(() => {
+    api.get("/patients").then((r) => setPatients(r.data));
+    if (reception) api.get("/cases/doctors").then((r) => { setDoctors(r.data); setDoctorId(r.data[0]?.id || ""); });
+  }, []);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const matches = q.trim() ? patients.filter((p) => `${p.full_name} ${p.patient_no} ${p.phone}`.toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [];
 
   const submit = async (e) => {
     e.preventDefault(); setErr(""); setBusy(true);
-    try { const { data } = await api.post("/cases/open", mode === "existing" ? { patient_id: Number(pid) } : f); onDone(data); } catch (x) { setErr(errMsg(x)); } finally { setBusy(false); }
+    try {
+      const body = mode === "existing" ? { patient_id: Number(pid), email: newEmail } : f;
+      const { data } = await api.post(reception ? "/cases/register" : "/cases/open", reception ? { ...body, doctor_id: Number(doctorId) } : body);
+      onDone(data);
+    } catch (x) { setErr(errMsg(x)); } finally { setBusy(false); }
   };
   return (
-    <Modal title="Receive a patient" onClose={onClose} wide>
+    <Modal title={reception ? "Receive and assign a patient" : "Receive a patient"} onClose={onClose} wide>
       <div className="tabs" style={{ marginBottom: 14 }}>
         <button type="button" className={mode === "existing" ? "on" : ""} onClick={() => setMode("existing")}>Patient on record</button>
         <button type="button" className={mode === "new" ? "on" : ""} onClick={() => setMode("new")}>New patient</button>
@@ -31,6 +41,7 @@ export default function OpenCaseModal({ onClose, onDone }) {
             <Input label="Find the patient" value={q} onChange={(e) => { setQ(e.target.value); setPid(""); }} placeholder="Name, patient number or phone" />
             {matches.length > 0 && !pid && <div className="panel picks" style={{ marginBottom: 14 }}>{matches.map((m) => (
               <button type="button" key={m.id} onClick={() => { setPid(m.id); setQ(`${m.full_name} (${m.patient_no})`); }}><b>{m.full_name}</b><span className="sub">{m.patient_no} · {m.phone}</span></button>))}</div>}
+            {pid && <Input label="Patient email or attendant's email (optional, to open or update their patient page)" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} hint="A returning patient can use the same email or a new one." />}
           </>
         ) : (
           <div className="grid2">
@@ -43,11 +54,20 @@ export default function OpenCaseModal({ onClose, onDone }) {
             <Input label="Next of kin" value={f.next_of_kin} onChange={set("next_of_kin")} />
             <Input label="Next of kin phone" value={f.next_of_kin_phone} onChange={set("next_of_kin_phone")} />
             <Input full label="Known allergies"><textarea className="input" rows={2} value={f.allergies} onChange={set("allergies")} /></Input>
+            <Input full label="Patient email or attendant's email" type="email" value={f.email} onChange={set("email")} hint="The patient gets a link to accept their patient page, follow each step of the visit and save the final document." />
           </div>
+        )}
+        {reception && (
+          <Input full label="Assign to doctor" hint="Doctors with the fewest waiting patients are listed first.">
+            <select className="input" value={doctorId} onChange={(e) => setDoctorId(e.target.value)} required>
+              {doctors.length === 0 && <option value="">No doctor in this clinic</option>}
+              {doctors.map((d) => <option key={d.id} value={d.id}>{d.full_name} ({d.open_cases} waiting)</option>)}
+            </select>
+          </Input>
         )}
         {err && <Notice tone="error">{err}</Notice>}
         <div className="modal-foot"><button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={busy || (mode === "existing" && !pid)}>{busy ? "Opening…" : "Start consultation"}</button></div>
+          <button className="btn primary" disabled={busy || (mode === "existing" && !pid) || (reception && !doctorId)}>{busy ? "Saving…" : reception ? "Register and assign to doctor" : "Start consultation"}</button></div>
       </form>
     </Modal>
   );

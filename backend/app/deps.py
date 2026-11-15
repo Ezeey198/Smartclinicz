@@ -20,6 +20,8 @@ def current_user(request: Request, creds=Depends(bearer), db: Session = Depends(
         data = jwt.decode(creds.credentials, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except jwt.PyJWTError:
         raise HTTPException(401, "Your session has expired. Please sign in again.")
+    if "sub" not in data:                       # a patient's token is not a staff token
+        raise HTTPException(401, "Please sign in.")
     user = db.get(User, int(data["sub"]))
     if not user or not user.is_active:
         raise HTTPException(401, "Your account is inactive.")

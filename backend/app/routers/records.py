@@ -7,15 +7,21 @@ from sqlalchemy.orm import Session
 from ..activity import log
 from ..database import get_db
 from ..deps import module_guard
-from ..models import (Appointment, CaseEvent, Encounter, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Prescription,
+from .. import flow
+from ..models import (Appointment, CaseCharge, CaseEvent, Encounter, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Prescription,
                       SalaryPayment, SaleLine, ServicePrice, StockBatch, Supplier, Product, User, Visit)
 from ..pricing import charger, pay_gate
 from ..wallet import wallet_post
 
 
+HIDDEN = {"portal_password_hash", "portal_token", "portal_token_expires", "final_doc", "password_hash", "avatar"}   # never sent to the browser in a record
+
+
 def ser(obj) -> dict:
     out = {}
     for c in obj.__table__.columns:
+        if c.name in HIDDEN:
+            continue
         v = getattr(obj, c.name)
         out[c.name] = v.isoformat() if isinstance(v, datetime) else v
     return out
@@ -187,11 +193,18 @@ def _no_edit(db, user, o, data):
 
 
 def _lab_progress(db, user, o, changes):
-    """When the lab works on a test that belongs to a case, record it; when the last test is done the case goes back to the doctor."""
-    if not o.encounter_id or "status" not in changes:
+    """When the lab or radiology works on a test that belongs to a case, record it; the fee they set goes on the bill;
+    when the last result is in, the case goes back to the doctor and the doctor and patient are told."""
+    if not o.encounter_id:
         return
     enc = db.get(Encounter, o.encounter_id)
     if not enc:
+        return
+    if "fee" in changes and o.fee is not None:
+        line = db.query(CaseCharge).filter(CaseCharge.encounter_id == enc.id, CaseCharge.kind == "lab", CaseCharge.ref_id == o.id).first()
+        if line:
+            line.unit_price, line.amount = o.fee, round(o.fee * (line.quantity or 1), 2)
+    if "status" not in changes:
         return
     if o.status == "in_progress":
         db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="lab_started", details=o.test_name))
@@ -204,6 +217,16 @@ def _lab_progress(db, user, o, changes):
             enc.stage = "back_to_doctor"
             db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="returned_to_doctor",
                              details="All lab results are ready for the doctor"))
+            flow.lab_returned(db, enc)
+
+
+_pay_lab = pay_gate({"in_progress", "completed"}, "test")
+
+
+def _lab_gate(db, user, o, data):
+    _pay_lab(db, user, o, data)
+    if o.encounter_id and data.get("status") == "completed" and (data["fee"] if "fee" in data else o.fee) is None:
+        raise HTTPException(400, "Enter the fee first (it can be 0) before completing the result.")
 
 
 def _product_delete(db, user, o):
@@ -213,13 +236,29 @@ def _product_delete(db, user, o):
 
 
 _none = lambda o: ""
+_registration_fee = charger("registration", _none, "Registration fee", patient_of=lambda o: o.id, link=False)
+
+
+def _patient_created(db, user, o, data):
+    """Registration fee, then the invitation to the patient's own page when an email was entered."""
+    if o.email:
+        o.email = o.email.strip().lower()
+    _registration_fee(db, user, o, data)
+    if o.email:
+        flow.invite_patient(db, o, user.clinic)
+
+
+def _patient_updated(db, user, o, changes):
+    if "email" in changes and o.email:       # a new email (or the same patient returning with another one): invite again
+        o.email, o.portal_active = o.email.strip().lower(), False
+        flow.invite_patient(db, o, user.clinic)
 
 routers = [
     make_router("patients", Patient,
                 {"full_name": "str", "gender": "str", "date_of_birth": "str", "phone": "str", "address": "str",
-                 "next_of_kin": "str", "next_of_kin_phone": "str", "blood_group": "str", "allergies": "str"},
+                 "next_of_kin": "str", "next_of_kin_phone": "str", "blood_group": "str", "allergies": "str", "email": "str"},
                 required=["full_name", "gender"], number=("patient_no", "P"), noun="patient",
-                after_create=charger("registration", _none, "Registration fee", patient_of=lambda o: o.id, link=False)),
+                after_create=_patient_created, after_update=_patient_updated),
     make_router("appointments", Appointment,
                 {"patient_id": "int", "doctor_name": "str", "scheduled_at": "str", "reason": "str", "status": "str"},
                 required=["patient_id", "scheduled_at"], noun="appointment",
@@ -229,9 +268,9 @@ routers = [
                  "complaints": "str", "diagnosis": "str", "treatment_notes": "str"},
                 required=["patient_id"], author="recorded_by", noun="consultation record"),
     make_router("lab", LabOrder,
-                {"patient_id": "int", "test_name": "str", "notes": "str", "result": "str", "status": "str"},
+                {"patient_id": "int", "test_name": "str", "notes": "str", "result": "str", "status": "str", "fee": "float"},
                 required=["patient_id", "test_name"], author="requested_by", noun="lab request",
-                after_create=charger("lab", lambda o: o.test_name, "Lab test"), gate=pay_gate({"in_progress", "completed"}, "test"), after_update=_lab_progress),
+                after_create=charger("lab", lambda o: o.test_name, "Lab test"), gate=_lab_gate, after_update=_lab_progress),
     make_router("pharmacy", Prescription,
                 {"patient_id": "int", "drug": "str", "dosage": "str", "duration": "str", "status": "str"},
                 required=["patient_id", "drug"], author="prescribed_by", noun="prescription",

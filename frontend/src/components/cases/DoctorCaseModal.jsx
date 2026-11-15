@@ -12,10 +12,18 @@ export default function DoctorCaseModal({ caseId, onClose }) {
   const [tests, setTests] = useState([{ test_name: "", notes: "" }]);
   const [rx, setRx] = useState([{ drug: "", dosage: "", duration: "", quantity: 1 }]);
   const [prices, setPrices] = useState([]);
+  const [nurses, setNurses] = useState([]);
+  const [hasRad, setHasRad] = useState(false);
+  const [dest, setDest] = useState("lab");
+  const [assign, setAssign] = useState({ nurse_id: "", room: "", bed: "" });
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
-  const load = () => api.get(`/cases/${caseId}`).then((r) => { setD(r.data); setN(Object.fromEntries(FIELDS.map((k) => [k, r.data.case[k] || ""]))); });
-  useEffect(() => { load(); api.get("/prices").then((r) => setPrices(r.data)).catch(() => {}); }, [caseId]);
+  const load = () => api.get(`/cases/${caseId}`).then((r) => { setD(r.data); setN({ ...Object.fromEntries(FIELDS.map((k) => [k, r.data.case[k] || ""])), consultation_fee: r.data.case.consult_fee ?? "" }); setAssign({ nurse_id: r.data.case.nurse_id || "", room: r.data.case.room || "", bed: r.data.case.bed || "" }); });
+  useEffect(() => {
+    load(); api.get("/prices").then((r) => setPrices(r.data)).catch(() => {});
+    api.get("/cases/nurses").then((r) => setNurses(r.data)).catch(() => {});
+    api.get("/clinic/staff", { params: { role: "radiologist" } }).then((r) => setHasRad(r.data.length > 0)).catch(() => {});
+  }, [caseId]);
   useEffect(() => {   // while the patient is at the lab, pick up the results as soon as they are done
     if (!d || d.case.stage !== "at_lab") return undefined;
     const id = setInterval(() => api.get(`/cases/${caseId}`).then((r) => setD(r.data)).catch(() => {}), 8000);
@@ -30,12 +38,20 @@ export default function DoctorCaseModal({ caseId, onClose }) {
     setBusy(true); setMsg(null);
     try { const r = await fn(); setD(r.data); setMsg({ tone: "success", text: ok }); } catch (x) { setMsg({ tone: "error", text: errMsg(x) }); } finally { setBusy(false); }
   };
-  const save = () => api.patch(`/cases/${caseId}/consultation`, n);
+  const save = () => api.patch(`/cases/${caseId}/consultation`, { ...n, consultation_fee: n.consultation_fee === "" || n.consultation_fee == null ? null : Number(n.consultation_fee) });
+  const feeSet = d.case.consult_fee != null || (n.consultation_fee !== "" && n.consultation_fee != null);
   const upd = (list, set, i, k, v) => set(list.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
 
   return (
     <Modal title={`Case ${d.case.case_no}`} onClose={onClose} wide>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      {d.case.stage === "awaiting_doctor" && (
+        <div className="panel pad" style={{ marginBottom: 16 }}>
+          <h3>Patient assigned to you{d.case.visit_no > 1 ? ` (visit No. ${d.case.visit_no})` : ""}</h3>
+          <p className="sub">The receptionist has registered this patient. Confirm to call the patient in and start the consultation.</p>
+          <button className="btn primary" disabled={busy} onClick={() => run(() => api.post(`/cases/${caseId}/confirm`), "Patient confirmed. The consultation can start.")}>Confirm and start consultation</button>
+        </div>
+      )}
       {d.case.stage === "back_to_doctor" && <Notice tone="success">The lab has finished. Read the results below, then prescribe or send the patient on.</Notice>}
       {d.case.stage === "at_lab" && <Notice>The patient is at the lab. This case returns to you when every test is completed.</Notice>}
       {d.case.stage === "at_pharmacy" && <Notice>The patient is with the pharmacist.</Notice>}
@@ -54,6 +70,7 @@ export default function DoctorCaseModal({ caseId, onClose }) {
           <h3 style={{ marginBottom: 10 }}>Consultation</h3>
           <div className="grid2">
             {[["temperature", "Temperature (°C)"], ["blood_pressure", "Blood pressure"], ["pulse", "Pulse (bpm)"], ["weight", "Weight (kg)"]].map(([k, l]) => <Input key={k} label={l} value={n[k]} onChange={(e) => setN({ ...n, [k]: e.target.value })} />)}
+            <Input full label="Consultation fee (UGX). Required, and it can be 0" type="number" min="0" step="any" value={n.consultation_fee} onChange={(e) => setN({ ...n, consultation_fee: e.target.value })} hint="The patient cannot be sent on until the fee is entered." />
             {[["complaints", "Presenting complaints"], ["diagnosis", "Diagnosis"], ["treatment_notes", "Treatment notes"]].map(([k, l]) => (
               <Input key={k} full label={l}><textarea className="input" rows={2} value={n[k]} onChange={(e) => setN({ ...n, [k]: e.target.value })} /></Input>))}
           </div>
@@ -64,7 +81,8 @@ export default function DoctorCaseModal({ caseId, onClose }) {
       {mine && (
         <div className="grid2 forward">
           <div className="panel pad">
-            <h3 style={{ marginBottom: 10 }}>Send to the lab</h3>
+            <h3 style={{ marginBottom: 10 }}>{dest === "radiology" ? "Send to the radiologist" : "Send to the lab"}</h3>
+            {hasRad && <div className="tabs" style={{ marginBottom: 10 }}><button type="button" className={dest === "lab" ? "on" : ""} onClick={() => setDest("lab")}>Lab technician</button><button type="button" className={dest === "radiology" ? "on" : ""} onClick={() => setDest("radiology")}>Radiologist</button></div>}
             <datalist id="labnames">{names("lab").map((x) => <option key={x} value={x} />)}</datalist>
             {tests.map((t, i) => (
               <div className="line" key={i}>
@@ -72,8 +90,8 @@ export default function DoctorCaseModal({ caseId, onClose }) {
                 <span className="sub">{priceOf("lab", t.test_name) != null ? `UGX ${Number(priceOf("lab", t.test_name)).toLocaleString()}` : ""}</span>
               </div>))}
             <div className="row"><button className="btn ghost sm" onClick={() => setTests([...tests, { test_name: "", notes: "" }])}>+ Add test</button>
-              <button className="btn primary" disabled={busy || !tests.some((t) => t.test_name.trim())}
-                onClick={() => run(async () => { await save(); return api.post(`/cases/${caseId}/lab`, { tests: tests.filter((t) => t.test_name.trim()) }); }, "Sent to the lab technician.")}>Send to lab technician</button></div>
+              <button className="btn primary" disabled={busy || !feeSet || !tests.some((t) => t.test_name.trim())}
+                onClick={() => run(async () => { await save(); return api.post(`/cases/${caseId}/lab`, { destination: dest, tests: tests.filter((t) => t.test_name.trim()) }); }, dest === "radiology" ? "Sent to the radiologist." : "Sent to the lab technician.")}>{dest === "radiology" ? "Send to radiologist" : "Send to lab technician"}</button></div>
           </div>
           <div className="panel pad">
             <h3 style={{ marginBottom: 10 }}>Send to the pharmacy</h3>
@@ -86,10 +104,21 @@ export default function DoctorCaseModal({ caseId, onClose }) {
                 <input className="input" type="number" min="1" step="any" title="Quantity" value={r.quantity} onChange={(e) => upd(rx, setRx, i, "quantity", e.target.value)} />
               </div>))}
             <div className="row"><button className="btn ghost sm" onClick={() => setRx([...rx, { drug: "", dosage: "", duration: "", quantity: 1 }])}>+ Add drug</button>
-              <button className="btn primary" disabled={busy}
+              <button className="btn primary" disabled={busy || !feeSet}
                 onClick={() => run(async () => { await save(); return api.post(`/cases/${caseId}/pharmacy`, { prescriptions: rx.filter((r) => r.drug.trim()).map((r) => ({ ...r, quantity: Number(r.quantity) || 1 })) }); }, "Sent to the pharmacist.")}>
                 {rx.some((r) => r.drug.trim()) ? "Prescribe and send to pharmacist" : "No drugs: send for billing"}</button></div>
           </div>
+        </div>
+      )}
+      {!["awaiting_doctor", "completed"].includes(d.case.stage) && (
+        <div className="panel pad" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 10 }}>Nurse, room and bed</h3>
+          <div className="grid2">
+            <Input label="Assign to nurse"><select className="input" value={assign.nurse_id} onChange={(e) => setAssign({ ...assign, nurse_id: e.target.value })}><option value="">No nurse</option>{nurses.map((x) => <option key={x.id} value={x.id}>{x.full_name}</option>)}</select></Input>
+            <Input label="Room" value={assign.room} onChange={(e) => setAssign({ ...assign, room: e.target.value })} />
+            <Input label="Bed" value={assign.bed} onChange={(e) => setAssign({ ...assign, bed: e.target.value })} />
+          </div>
+          <button className="btn ghost" disabled={busy} onClick={() => run(() => api.post(`/cases/${caseId}/assign-nurse`, { nurse_id: assign.nurse_id ? Number(assign.nurse_id) : null, room: assign.room, bed: assign.bed }), "Nurse, room and bed saved. The nurse and the patient were notified.")}>Save assignment</button>
         </div>
       )}
       <CaseDetail d={d} />

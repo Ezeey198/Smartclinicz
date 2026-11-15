@@ -2,14 +2,17 @@
 the lab returns results to the doctor, the pharmacist dispenses and sells, and ONE bill (consultation + lab + drugs) is paid.
 Every step is recorded with who did it and when, so the clinic admin can track it."""
 from datetime import datetime
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from .. import flow
 from ..activity import log
+from ..notify import flush_sms
 from ..database import get_db
 from ..deps import module_guard
-from ..models import CaseCharge, CaseEvent, Encounter, InventoryItem, Invoice, LabOrder, Patient, Payment, Prescription
+from ..models import CaseCharge, CaseEvent, Encounter, InventoryItem, Invoice, LabOrder, Patient, Payment, Prescription, User
 from ..pricing import price_for, raise_invoice
 from ..roles import ROLE_LABELS
 from .records import ser
@@ -17,11 +20,17 @@ from .records import ser
 router = APIRouter(prefix="/cases", tags=["cases"])
 read, write = module_guard("cases"), module_guard("cases", write=True)
 KINDS = ("registration", "consultation", "lab", "drug", "other")
+STAGES_OPEN = ("awaiting_doctor", "with_doctor", "at_lab", "back_to_doctor", "at_pharmacy", "awaiting_payment")
 
 
 def need(user, *roles):
     if user.role != "admin" and user.role not in roles:
         raise HTTPException(403, "Your role cannot do this step.")
+
+
+def _need_fee(enc):
+    if enc.consult_fee is None:
+        raise HTTPException(400, "Enter the consultation fee first (it can be 0) before sending the patient on.")
 
 
 def _get(db, user, cid) -> Encounter:
@@ -56,6 +65,7 @@ def _sync_lab(db, enc):
         enc.stage = "back_to_doctor"
         db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=None, user_name="System", role="system", kind="returned_to_doctor",
                          details="All lab results are ready for the doctor"))
+        flow.lab_returned(db, enc)
         return True
     return False
 
@@ -74,7 +84,7 @@ def _detail(db, enc):
     charges = db.query(CaseCharge).filter(CaseCharge.encounter_id == enc.id).order_by(CaseCharge.id).all()
     pays = db.query(Payment).filter(Payment.invoice_id == inv.id).order_by(Payment.id).all() if inv else []
     return {
-        "case": ser(enc), "patient": ser(db.get(Patient, enc.patient_id)),
+        "case": {k: v for k, v in ser(enc).items() if k != "final_doc"}, "patient": ser(db.get(Patient, enc.patient_id)),
         "charges": [ser(c) for c in charges],
         "labs": [ser(x) for x in db.query(LabOrder).filter(LabOrder.encounter_id == enc.id).order_by(LabOrder.id)],
         "prescriptions": [ser(x) for x in db.query(Prescription).filter(Prescription.encounter_id == enc.id).order_by(Prescription.id)],
@@ -104,10 +114,27 @@ def list_cases(user=Depends(read), db: Session = Depends(get_db)):
         inv, ev = invs.get(e.invoice_id), last.get(e.id)
         total = float(sums.get(e.id, 0))
         out.append({"id": e.id, "case_no": e.case_no, "patient_id": e.patient_id, "patient_name": names.get(e.patient_id), "stage": e.stage,
-                    "doctor_name": e.doctor_name, "opened_at": e.created_at.isoformat(), "closed_at": e.closed_at.isoformat() if e.closed_at else None,
+                    "doctor_name": e.doctor_name, "visit_no": e.visit_no, "nurse_id": e.nurse_id, "nurse_name": e.nurse_name, "room": e.room, "bed": e.bed, "opened_at": e.created_at.isoformat(), "closed_at": e.closed_at.isoformat() if e.closed_at else None,
                     "total": total, "paid": (inv.paid if inv else 0) or 0, "invoice_status": inv.status if inv else None,
                     "last_event": ev and {"kind": ev.kind, "user_name": ev.user_name, "role_label": ROLE_LABELS.get(ev.role, ev.role), "created_at": ev.created_at.isoformat()}})
     return out
+
+
+@router.get("/doctors")
+def doctors(user=Depends(read), db: Session = Depends(get_db)):
+    """The doctors a patient can be assigned to, with how many patients each has waiting, so the receptionist can pick an available one."""
+    out = []
+    for d in db.query(User).filter(User.clinic_id == user.clinic_id, User.is_active.is_(True)).order_by(User.full_name):
+        if d.role != "doctor":
+            continue
+        busy = db.query(Encounter).filter(Encounter.clinic_id == user.clinic_id, Encounter.doctor_id == d.id, Encounter.stage.in_(STAGES_OPEN)).count()
+        out.append({"id": d.id, "full_name": d.full_name, "open_cases": busy})
+    return sorted(out, key=lambda x: x["open_cases"])
+
+
+@router.get("/nurses")
+def nurses(user=Depends(read), db: Session = Depends(get_db)):
+    return [{"id": n.id, "full_name": n.full_name} for n in db.query(User).filter(User.clinic_id == user.clinic_id, User.is_active.is_(True)).order_by(User.full_name) if n.role == "nurse"]
 
 
 @router.get("/{cid}")
@@ -129,39 +156,155 @@ class OpenIn(BaseModel):
     next_of_kin_phone: str | None = None
     blood_group: str | None = None
     allergies: str | None = None
+    email: str | None = None              # the patient's own email, or an attendant's, for the patient's page
+    doctor_id: int | None = None          # receptionist: the doctor the patient is assigned to
 
 
-@router.post("/open", status_code=201)
-def open_case(body: OpenIn, user=Depends(write), db: Session = Depends(get_db)):
-    """The doctor receives a patient: pick an existing patient or register a new one, and the consultation starts."""
-    need(user, "doctor")
-    cid, new = user.clinic_id, False
+def _patient_for(db, user, body):
+    """An existing patient, or a new one registered now. Returns (patient, is_new). A new email is saved and the patient is invited to their page."""
+    cid = user.clinic_id
     if body.patient_id:
         patient = db.query(Patient).filter(Patient.id == body.patient_id, Patient.clinic_id == cid).first()
         if not patient:
             raise HTTPException(404, "Patient not found.")
+        new = False
+        if (body.email or "").strip() and (body.email or "").strip().lower() != (patient.email or "").lower():
+            patient.email = body.email.strip().lower()
+            patient.portal_active = False
     else:
         if not (body.full_name or "").strip() or not body.gender:
             raise HTTPException(422, "Enter the patient's name and gender, or choose an existing patient.")
         top = db.query(func.max(Patient.id)).filter(Patient.clinic_id == cid).scalar() or 0
-        patient = Patient(clinic_id=cid, patient_no=f"P-{top + 1:06d}", **{k: (v or "").strip() or None for k, v in body.model_dump(exclude={"patient_id"}).items()})
+        data = {k: (v or "").strip() or None for k, v in body.model_dump(exclude={"patient_id", "doctor_id"}).items()}
+        if data.get("email"):
+            data["email"] = data["email"].lower()
+        patient = Patient(clinic_id=cid, patient_no=f"P-{top + 1:06d}", **data)
         db.add(patient)
         db.flush()
         new = True
-    open_case_ = db.query(Encounter).filter(Encounter.clinic_id == cid, Encounter.patient_id == patient.id, Encounter.stage != "completed").first()
-    if open_case_:
-        raise HTTPException(400, f"{patient.full_name} already has an open case ({open_case_.case_no}).")
+    open_ = db.query(Encounter).filter(Encounter.clinic_id == cid, Encounter.patient_id == patient.id, Encounter.stage != "completed").first()
+    if open_:
+        raise HTTPException(400, f"{patient.full_name} already has an open case ({open_.case_no}).")
+    return patient, new
+
+
+def _new_encounter(db, user, patient, new, stage, doctor):
+    cid = user.clinic_id
     top = db.query(func.max(Encounter.id)).filter(Encounter.clinic_id == cid).scalar() or 0
-    enc = Encounter(clinic_id=cid, patient_id=patient.id, case_no=f"CS-{top + 1:06d}", stage="with_doctor", doctor_id=user.id, doctor_name=user.full_name)
+    visits = db.query(func.count(Encounter.id)).filter(Encounter.clinic_id == cid, Encounter.patient_id == patient.id).scalar() or 0
+    patient.portal_session_until = None          # a new visit opens the patient's page again
+    enc = Encounter(clinic_id=cid, patient_id=patient.id, case_no=f"CS-{top + 1:06d}", stage=stage, visit_no=visits + 1,
+                    doctor_id=doctor.id if doctor else None, doctor_name=doctor.full_name if doctor else None)
     db.add(enc)
     db.flush()
     if new and (fee := price_for(db, cid, "registration", "")):
         _charge(db, enc, user, "registration", "Patient registration fee", 1, fee)
-    if fee := price_for(db, cid, "consultation", ""):
-        _charge(db, enc, user, "consultation", f"Consultation fee ({user.full_name})", 1, fee)
-    _event(db, enc, user, "opened", ("New patient registered. " if new else "") + f"Consultation started for {patient.full_name}")
-    log(db, user, "cases", "created", f"{user.full_name} received {patient.full_name} (case {enc.case_no})", {"case": enc.case_no, "new_patient": new})
+    return enc
+
+
+def _invite_if_needed(db, user, patient):
+    if patient.email and not patient.portal_active:
+        flow.invite_patient(db, patient, user.clinic)
+
+
+@router.post("/register", status_code=201)
+def register_patient(body: OpenIn, user=Depends(write), db: Session = Depends(get_db)):
+    """The receptionist receives the patient: records them (or finds the existing record) and assigns an available doctor.
+    The doctor then confirms and consults; the doctor never has to register the patient."""
+    need(user, "receptionist")
+    doctor = body.doctor_id and db.query(User).filter(User.id == body.doctor_id, User.clinic_id == user.clinic_id, User.is_active.is_(True)).first()
+    if not doctor or doctor.role != "doctor":
+        raise HTTPException(422, "Choose the doctor this patient is assigned to.")
+    patient, new = _patient_for(db, user, body)
+    enc = _new_encounter(db, user, patient, new, "awaiting_doctor", doctor)
+    _event(db, enc, user, "registered", (f"New patient registered. " if new else f"Returning patient, visit {enc.visit_no}. ") + "Assigned to a doctor")
+    log(db, user, "cases", "created", f"{user.full_name} received {patient.full_name} (case {enc.case_no}, visit {enc.visit_no}) and assigned a doctor", {"case": enc.case_no, "new_patient": new})
+    flow.tell_doctor(db, enc, "New patient assigned to you", f"{patient.full_name} (visit {enc.visit_no}) is waiting. Confirm and start the consultation.")
+    flow.tell_patient(db, enc, "You are registered", "Your record was created and you were assigned to a doctor. Please wait to be called.")
     db.commit()
+    _invite_if_needed(db, user, patient)
+    flush_sms()
+    return _detail(db, enc)
+
+
+@router.post("/{cid}/confirm")
+def confirm_patient(cid: int, user=Depends(write), db: Session = Depends(get_db)):
+    """The assigned doctor confirms the patient and calls them in for the consultation."""
+    need(user, "doctor")
+    enc = _get(db, user, cid)
+    _stage(enc, "awaiting_doctor")
+    if user.role != "admin" and enc.doctor_id not in (None, user.id):
+        raise HTTPException(403, "This patient is assigned to another doctor.")
+    enc.stage, enc.doctor_id, enc.doctor_name = "with_doctor", user.id, user.full_name
+    _event(db, enc, user, "doctor_confirmed", "Doctor confirmed the patient and started the consultation")
+    flow.tell_patient(db, enc, "The doctor is ready for you", "Please go in for your consultation.")
+    db.commit()
+    flush_sms()
+    return _detail(db, enc)
+
+
+class NurseIn(BaseModel):
+    nurse_id: int | None = None
+    room: str | None = None
+    bed: str | None = None
+
+
+@router.post("/{cid}/assign-nurse")
+def assign_nurse(cid: int, body: NurseIn, user=Depends(write), db: Session = Depends(get_db)):
+    """The doctor assigns the patient to a nurse, and to a room and bed."""
+    need(user, "doctor")
+    enc = _get(db, user, cid)
+    if enc.stage == "completed":
+        raise HTTPException(400, "This case is already complete.")
+    nurse = None
+    if body.nurse_id:
+        nurse = db.query(User).filter(User.id == body.nurse_id, User.clinic_id == user.clinic_id, User.is_active.is_(True)).first()
+        if not nurse or nurse.role != "nurse":
+            raise HTTPException(422, "Choose a nurse from this clinic.")
+    enc.nurse_id, enc.nurse_name = (nurse.id, nurse.full_name) if nurse else (None, None)
+    enc.room, enc.bed = (body.room or "").strip() or None, (body.bed or "").strip() or None
+    where = ", ".join(x for x in (f"room {enc.room}" if enc.room else "", f"bed {enc.bed}" if enc.bed else "") if x)
+    _event(db, enc, user, "nurse_assigned", (f"Nurse assigned. " if nurse else "") + (where.capitalize() if where else ""))
+    if nurse:
+        notify_ = f"Patient {db.get(Patient, enc.patient_id).full_name} ({enc.case_no})" + (f" in {where}" if where else "")
+        from ..notify import notify
+        notify(db, "A patient was assigned to you", notify_, users=[nurse], link="/app/cases", kind="journey", clinic_id=enc.clinic_id)
+    flow.tell_patient(db, enc, "A nurse was assigned to you", ("You are in " + where + ". ") if where else "A nurse will look after you.")
+    db.commit()
+    flush_sms()
+    return _detail(db, enc)
+
+
+class CallIn(BaseModel):
+    message: str | None = None
+
+
+@router.post("/{cid}/call-patient")
+def call_patient(cid: int, body: CallIn, user=Depends(write), db: Session = Depends(get_db)):
+    """The pharmacist calls the patient and tells them anything else that is needed (for example, a drug is out of stock)."""
+    need(user, "pharmacist")
+    enc = _get(db, user, cid)
+    _stage(enc, "at_pharmacy", "awaiting_payment")
+    msg = (body.message or "").strip() or "Please come to the pharmacy."
+    _event(db, enc, user, "patient_called", msg[:300])
+    flow.tell_patient(db, enc, "The pharmacy is calling you", msg[:300])
+    db.commit()
+    flush_sms()
+    return _detail(db, enc)
+
+
+@router.post("/open", status_code=201)
+def open_case(body: OpenIn, user=Depends(write), db: Session = Depends(get_db)):
+    """A doctor receives a patient directly (clinics without a receptionist): the consultation starts at once."""
+    need(user, "doctor")
+    patient, new = _patient_for(db, user, body)
+    enc = _new_encounter(db, user, patient, new, "with_doctor", user)
+    _event(db, enc, user, "opened", (f"New patient registered. " if new else f"Returning patient, visit {enc.visit_no}. ") + f"Consultation started for {patient.full_name}")
+    log(db, user, "cases", "created", f"{user.full_name} received {patient.full_name} (case {enc.case_no}, visit {enc.visit_no})", {"case": enc.case_no, "new_patient": new})
+    flow.tell_patient(db, enc, "You are registered", "Your record was created and your consultation has started.")
+    db.commit()
+    _invite_if_needed(db, user, patient)
+    flush_sms()
     return _detail(db, enc)
 
 
@@ -173,6 +316,7 @@ class ConsultIn(BaseModel):
     blood_pressure: str | None = None
     pulse: str | None = None
     weight: str | None = None
+    consultation_fee: float | None = Field(default=None, ge=0)     # the doctor must set it before sending the patient on; it can be 0
 
 
 @router.patch("/{cid}/consultation")
@@ -181,7 +325,16 @@ def save_consultation(cid: int, body: ConsultIn, user=Depends(write), db: Sessio
     enc = _get(db, user, cid)
     _stage(enc, "with_doctor", "back_to_doctor")
     changed = []
-    for k, v in body.model_dump().items():
+    if body.consultation_fee is not None and body.consultation_fee != enc.consult_fee:
+        fee = round(body.consultation_fee, 2)
+        line = db.query(CaseCharge).filter(CaseCharge.encounter_id == enc.id, CaseCharge.kind == "consultation").first()
+        if line:
+            line.unit_price, line.amount, line.quantity = fee, fee, 1
+        else:
+            _charge(db, enc, user, "consultation", "Consultation fee", 1, fee)
+        enc.consult_fee = fee
+        changed.append("consultation fee")
+    for k, v in body.model_dump(exclude={"consultation_fee"}).items():
         v = (v or "").strip() or None
         if getattr(enc, k) != v:
             setattr(enc, k, v)
@@ -200,6 +353,7 @@ class LabItem(BaseModel):
 
 class LabIn(BaseModel):
     tests: list[LabItem] = Field(min_length=1)
+    destination: Literal["lab", "radiology"] = "lab"       # the lab technician, or the radiologist when the clinic has one
 
 
 @router.post("/{cid}/lab")
@@ -207,18 +361,27 @@ def send_to_lab(cid: int, body: LabIn, user=Depends(write), db: Session = Depend
     need(user, "doctor")
     enc = _get(db, user, cid)
     _stage(enc, "with_doctor", "back_to_doctor")
+    _need_fee(enc)
+    dept = body.destination
+    if dept == "radiology" and not flow.has_role(db, enc.clinic_id, "radiologist"):
+        raise HTTPException(400, "This clinic has no radiologist. Send the request to the lab technician instead.")
     names = []
     for t in body.tests:
         lab = LabOrder(clinic_id=enc.clinic_id, patient_id=enc.patient_id, test_name=t.test_name.strip(), notes=t.notes, status="requested",
-                       requested_by=user.full_name, encounter_id=enc.id)
+                       requested_by=user.full_name, encounter_id=enc.id, department=dept)
         db.add(lab)
         db.flush()
-        _charge(db, enc, user, "lab", f"Lab: {lab.test_name}", 1, price_for(db, enc.clinic_id, "lab", lab.test_name), lab.id)
+        # the fee is set by the lab technician / radiologist when the result is entered, so the line starts at 0
+        _charge(db, enc, user, "lab", f"{'Imaging' if dept == 'radiology' else 'Lab'}: {lab.test_name}", 1, 0, lab.id)
         names.append(lab.test_name)
     enc.stage = "at_lab"
-    _event(db, enc, user, "forwarded_to_lab", ", ".join(names))
-    log(db, user, "cases", "updated", f"{user.full_name} sent case {enc.case_no} to the lab: {', '.join(names)}", {"case": enc.case_no, "tests": names})
+    place = "the radiologist" if dept == "radiology" else "the laboratory"
+    _event(db, enc, user, "forwarded_to_lab", f"Sent to {place}: " + ", ".join(names))
+    log(db, user, "cases", "updated", f"{user.full_name} sent case {enc.case_no} to {place}: {', '.join(names)}", {"case": enc.case_no, "tests": names})
+    flow.tell_roles(db, enc, ["radiologist" if dept == "radiology" else "lab_technician"], "New request from the doctor", f"Case {enc.case_no}: {', '.join(names)}", link="/app/queue")
+    flow.tell_patient(db, enc, "You are being sent for tests", f"Your doctor sent you to {place} for {', '.join(names)}.")
     db.commit()
+    flush_sms()
     return _detail(db, enc)
 
 
@@ -239,6 +402,8 @@ def send_to_pharmacy(cid: int, body: PharmacyIn, user=Depends(write), db: Sessio
     need(user, "doctor")
     enc = _get(db, user, cid)
     _stage(enc, "with_doctor", "back_to_doctor")
+    _need_fee(enc)
+    came_from_lab = db.query(LabOrder).filter(LabOrder.encounter_id == enc.id).count() > 0
     drugs = []
     for r in body.prescriptions:
         db.add(Prescription(clinic_id=enc.clinic_id, patient_id=enc.patient_id, drug=r.drug.strip(), dosage=r.dosage, duration=r.duration, quantity=r.quantity,
@@ -247,7 +412,11 @@ def send_to_pharmacy(cid: int, body: PharmacyIn, user=Depends(write), db: Sessio
     enc.stage = "at_pharmacy"
     _event(db, enc, user, "forwarded_to_pharmacy", ", ".join(drugs) if drugs else "No drugs prescribed. Sent for billing")
     log(db, user, "cases", "updated", f"{user.full_name} sent case {enc.case_no} to the pharmacy", {"case": enc.case_no, "prescribed": drugs})
+    flow.tell_roles(db, enc, ["pharmacist"], "New prescription from the doctor", f"Case {enc.case_no}: " + (", ".join(drugs) if drugs else "no drugs, for billing"), link="/app/cases")
+    flow.tell_patient(db, enc, "Your prescription is with the pharmacy" if not came_from_lab else "Your results were approved",
+                      "The doctor approved your results and sent your prescription to the pharmacy." if came_from_lab else "Please go to the pharmacy.")
     db.commit()
+    flush_sms()
     return _detail(db, enc)
 
 
@@ -337,5 +506,13 @@ def make_bill(cid: int, user=Depends(write), db: Session = Depends(get_db)):
         enc.invoice_id, enc.stage = inv.id, "awaiting_payment"
         _event(db, enc, user, "billed", f"Bill {inv.invoice_no} for UGX {total:,.0f}")
     log(db, user, "cases", "updated", f"{user.full_name} generated the bill for case {enc.case_no} (UGX {total:,.0f})", {"case": enc.case_no, "total": total})
+    if enc.stage == "awaiting_payment":
+        if flow.has_role(db, enc.clinic_id, "accountant"):
+            # with an accountant the pharmacist stops at the billing record: it goes to the accountant, who takes payment, stamps and prints
+            flow.tell_roles(db, enc, ["accountant"], "Bill received from the pharmacy", f"Case {enc.case_no}: UGX {total:,.0f}. Review the payments, stamp and print.", link="/app/cases")
+        flow.tell_patient(db, enc, "Your files are ready for payment", f"All your files are complete. Total UGX {total:,.0f}. Pay, then your document is stamped and printed.")
+    else:
+        flow.tell_patient(db, enc, "Your files are complete", "There is nothing to pay.")
     db.commit()
+    flush_sms()
     return _detail(db, enc)

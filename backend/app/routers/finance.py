@@ -3,7 +3,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from ..activity import log
 from ..database import get_db
+from .. import flow
 from ..deps import clinic_member
+from ..notify import flush_sms
 from datetime import datetime
 from ..models import CaseEvent, Encounter, Expense, Invoice, Patient, Payment
 from ..roles import COLLECTOR_ROLES, REPORT_ROLES
@@ -13,9 +15,11 @@ from .records import _invoice, ser
 router = APIRouter(prefix="/billing", tags=["finance"])
 
 
-def collector(user=Depends(clinic_member)):
+def collector(user=Depends(clinic_member), db: Session = Depends(get_db)):
     if user.role not in COLLECTOR_ROLES:
         raise HTTPException(403, "Your role cannot receive payments.")
+    if not (user.role == "admin" or user.role == "accountant") and flow.has_role(db, user.clinic_id, "accountant"):
+        raise HTTPException(403, "This clinic has an accountant, who receives the payments. The pharmacist stops at the billing record.")
     return user
 
 
@@ -78,7 +82,13 @@ def pay(rid: int, body: PayIn, user=Depends(collector), db: Session = Depends(ge
         if inv.status == "paid":
             enc.stage, enc.closed_at = "completed", datetime.utcnow()
             db.add(CaseEvent(clinic_id=enc.clinic_id, encounter_id=enc.id, user_id=user.id, user_name=user.full_name, role=user.role, kind="closed", details="Bill paid in full. Case completed"))
+            flow.tell_patient(db, enc, "Payment received", "Your bill is paid in full. Your document will now be stamped and printed.")
+            db.flush()
+            flow.try_finalize(db, enc)           # if the case file was already stamped, the final document goes to the patient's page now
+        else:
+            flow.tell_patient(db, enc, "Payment received", f"UGX {body.amount:,.0f} received. Balance UGX {left:,.0f}.")
     db.commit()
+    flush_sms()
     return ser(inv)
 
 

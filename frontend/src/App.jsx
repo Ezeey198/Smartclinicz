@@ -10,6 +10,9 @@ import Directory from "./pages/public/Directory";
 import Home from "./pages/public/Home";
 import PublicLayout from "./pages/public/PublicLayout";
 import { Activate, ApproveClinic } from "./pages/Links";
+import PatientActivate from "./pages/patient/PatientActivate";
+import PatientHome from "./pages/patient/PatientHome";
+import PatientLogin from "./pages/patient/PatientLogin";
 
 function Guard({ superadmin }) {
   const { user, loading } = useAuth();
@@ -33,6 +36,9 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/superadmin" element={<Login superadmin />} />
       <Route path="/activate" element={<Activate />} />
+      <Route path="/patient" element={<PatientLogin />} />
+      <Route path="/patient/activate" element={<PatientActivate />} />
+      <Route path="/patient/home" element={<PatientHome />} />
       <Route path="/approve-clinic" element={<ApproveClinic />} />
       <Route path="/super/*" element={<Guard superadmin />} />
       <Route path="/app/*" element={<Guard />} />

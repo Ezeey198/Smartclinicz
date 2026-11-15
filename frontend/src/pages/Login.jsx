@@ -35,7 +35,7 @@ export default function Login({ superadmin = false }) {
         <form onSubmit={submit}>
           <h2>{superadmin ? "Superadmin sign in" : "Sign in"}</h2>
           {err && <Notice tone="error">{err}</Notice>}
-          {mode === "clinic" && <Input label="code" value={f.clinic_code} onChange={set("clinic_code")} placeholder="XX-7K3MQ2" required autoCapitalize="characters" />}
+          {mode === "clinic" && <Input label="Clinic code" value={f.clinic_code} onChange={set("clinic_code")} placeholder="CL-7K3MQ2" required autoCapitalize="characters" />}
           <Input label="Email" type="email" value={f.email} onChange={set("email")} required autoComplete="username" />
           <Input label="Password" type="password" value={f.password} onChange={set("password")} required autoComplete="current-password" />
           <button className="btn primary block" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>

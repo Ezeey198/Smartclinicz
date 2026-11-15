@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..activity import log
+from .. import flow
 from ..database import get_db
 from ..deps import clinic_admin_only, clinic_member
 from ..models import (Appointment, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Payment, Prescription,
@@ -29,7 +30,7 @@ DOCS = {
     "salary_slip": (SalaryPayment, "payroll", "salary slip", ("accountant",)),
     "patient_summary": (Patient, "patients", "patient summary", ("doctor", "nurse", "receptionist")),
     "medical_record": (Patient, "patients", "medical record", ("doctor", "nurse")),   # the whole patient file: consultations, lab, drugs, imaging, cases
-    "case_file": (Encounter, "cases", "case file", ("doctor", "pharmacist")),
+    "case_file": (Encounter, "cases", "case file", ("doctor", "pharmacist", "accountant")),
     "sale_receipt": (Sale, "sales", "sale receipt", ("pharmacy_seller",)),
     "expense_voucher": (Expense, "accounts", "expense voucher", ("accountant",)),
 }
@@ -122,7 +123,12 @@ def apply_stamp(body: ApplyIn, user=Depends(clinic_member), db: Session = Depend
                    doc_id=body.doc_id, doc_ref=ref, stamped_at=datetime.utcnow())   # the date is always "now"; it cannot be chosen
     db.add(use)
     log(db, user, "stamp", "stamped", f"{user.full_name} stamped a {noun}: {ref}", {"document": ref, "type": body.doc_type})
+    if body.doc_type == "case_file":
+        db.flush()
+        flow.try_finalize(db, rec)               # paid + stamped: the finished document goes to the patient's page
     db.commit()
+    from ..notify import flush_sms
+    flush_sms()
     return _use(use)
 
 

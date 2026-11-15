@@ -1,5 +1,6 @@
+import json
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, LargeBinary, ForeignKey, UniqueConstraint
+from sqlalchemy import event, Column, Integer, String, Float, Boolean, DateTime, Text, LargeBinary, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -57,8 +58,52 @@ class User(Base):
     token_expires = Column(DateTime)
     activated_at = Column(DateTime)
     last_seen_activity_id = Column(Integer, default=0)
+    extra_roles = Column(Text)           # JSON list: the other roles this person also holds (their sidebars are combined)
+    avatar = Column(Text)                # profile picture as a small data URL
+    theme = Column(String(40))           # colour theme chosen for this account only
+    failed_logins = Column(Integer, default=0)
+    locked_at = Column(DateTime)         # set after 3 wrong passwords; the clinic admin sends a reset email to unlock
     created_at = Column(DateTime, default=now)
     clinic = relationship("Clinic", back_populates="users")
+
+
+class RoleStr(str):
+    """A user's main role that also equals each of their other roles, so every `user.role in (...)` and `user.role == ...` check in the
+    system works for people who hold more than one role."""
+    def __new__(cls, main, extra=()):
+        s = super().__new__(cls, main)
+        s.all = [str(main)] + [r for r in extra if r != main]
+        return s
+
+    def __eq__(self, other):
+        return isinstance(other, str) and other in self.all
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    __hash__ = str.__hash__
+
+    def __str__(self):
+        return "".join((self,))
+
+
+def _combine_roles(user, *args):
+    d = user.__dict__
+    if "role" not in d or "extra_roles" not in d or not d["role"]:
+        return
+    try:
+        extra = json.loads(d["extra_roles"]) if d["extra_roles"] else []
+    except ValueError:
+        extra = []
+    d["role"] = RoleStr(str(d["role"]), extra)      # written straight into the instance, so it is never saved back as a change
+
+
+event.listen(User, "load", _combine_roles)
+event.listen(User, "refresh", _combine_roles)
+
+
+def role_list(user):
+    return list(getattr(user.role, "all", [str(user.role)]))
 
 
 class EmailOutbox(Base):
@@ -90,6 +135,12 @@ class Patient(Base):
     next_of_kin_phone = Column(String(50))
     blood_group = Column(String(10))
     allergies = Column(Text)
+    email = Column(String(200), index=True)               # where the patient's account invitation goes (the patient's own or an attendant's)
+    portal_password_hash = Column(String(300))
+    portal_token = Column(String(80), index=True)         # invitation link: the patient accepts the account and chooses a password
+    portal_token_expires = Column(DateTime)
+    portal_active = Column(Boolean, default=False)
+    portal_session_until = Column(DateTime)               # set once the patient has saved the final document: the session ends then
     created_at = Column(DateTime, default=now)
 
 
@@ -132,6 +183,8 @@ class LabOrder(Base):
     notes = Column(Text)
     result = Column(Text)
     status = Column(String(20), default="requested")
+    department = Column(String(20), default="lab")       # lab | radiology (a radiologist does the same work as the lab technician)
+    fee = Column(Float)                                   # the fee the lab technician or radiologist sets (can be zero)
     invoice_id = Column(Integer)
     requested_by = Column(String(150))
     created_at = Column(DateTime, default=now)
@@ -354,6 +407,15 @@ class Encounter(Base):
     pulse = Column(String(20))
     weight = Column(String(20))
     invoice_id = Column(Integer)
+    visit_no = Column(Integer)                            # 1 for the first visit, 2 for the second, and so on
+    consult_fee = Column(Float)                           # set by the doctor (can be zero) before the case moves on
+    nurse_id = Column(Integer)
+    nurse_name = Column(String(150))
+    room = Column(String(40))
+    bed = Column(String(40))
+    final_doc = Column(Text)                              # the finished case file as the patient sees it (no staff names), saved when it is stamped and printed
+    doc_ready_at = Column(DateTime)
+    doc_saved_at = Column(DateTime)                       # the patient saved the final document: their session ends five minutes later
     created_at = Column(DateTime, default=now)
     closed_at = Column(DateTime)
 
@@ -518,3 +580,56 @@ class MediaItem(Base):
 CLINIC_DATA = [Patient, Appointment, Visit, LabOrder, Prescription, Invoice, InventoryItem, ImagingOrder, Expense, LeaveRequest, Payment,
                ServicePrice, SalaryPayment, WalletTx, SubscriptionPayment, Activity, PaymentRequest, StampUse, Encounter, CaseEvent, CaseCharge,
                Product, Supplier, StockBatch, Purchase, PurchaseLine, Sale, SaleLine, MediaItem]
+
+
+class Notification(Base):
+    """One notification for a staff member or a patient. Each is also sent by SMS (see notify.py)."""
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True)
+    clinic_id = Column(Integer, index=True)
+    user_id = Column(Integer, index=True)
+    patient_id = Column(Integer, index=True)
+    kind = Column(String(30), default="info")
+    title = Column(String(200))
+    body = Column(Text)
+    link = Column(String(200))
+    created_at = Column(DateTime, default=now)
+    read_at = Column(DateTime)
+
+
+class SmsOutbox(Base):
+    __tablename__ = "sms_outbox"
+    id = Column(Integer, primary_key=True)
+    clinic_id = Column(Integer, index=True)
+    to_phone = Column(String(50))
+    body = Column(Text)
+    sent = Column(Boolean, default=False)
+    tries = Column(Integer, default=0)
+    error = Column(Text)
+    created_at = Column(DateTime, default=now)
+
+
+class Attendance(Base):
+    """A clock-in at the clinic (taken only within 20 metres of the clinic's saved location) and the clock-out."""
+    __tablename__ = "attendance"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    user_id = Column(Integer, index=True)
+    user_name = Column(String(150))
+    clock_in = Column(DateTime, default=now)
+    clock_out = Column(DateTime)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    distance_m = Column(Float)
+    accuracy_m = Column(Float)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    sender_id = Column(Integer, index=True)
+    recipient_id = Column(Integer, index=True)
+    body = Column(Text)
+    created_at = Column(DateTime, default=now)
+    read_at = Column(DateTime)

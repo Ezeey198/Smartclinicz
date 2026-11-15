@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import api, { errMsg } from "../../api";
 import PayModal from "../PayModal";
+import { useAuth } from "../../auth";
 import { Input, Modal, Notice, Spinner, ugx } from "../ui";
 import CaseDetail from "./CaseDetail";
 
@@ -10,11 +11,14 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
   const [lines, setLines] = useState({});
   const [prices, setPrices] = useState([]);
   const [extra, setExtra] = useState({ description: "", quantity: 1, unit_price: "" });
+  const { user } = useAuth();
   const [pay, setPay] = useState(false);
+  const [hasAcc, setHasAcc] = useState(false);
+  const [callMsg, setCallMsg] = useState("");
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const load = () => api.get(`/cases/${caseId}`).then((r) => setD(r.data));
-  useEffect(() => { load(); api.get("/prices").then((r) => setPrices(r.data)).catch(() => {}); }, [caseId]);
+  useEffect(() => { load(); api.get("/prices").then((r) => setPrices(r.data)).catch(() => {}); api.get("/clinic/staff", { params: { role: "accountant" } }).then((r) => setHasAcc(r.data.length > 0)).catch(() => {}); }, [caseId]);
   useEffect(() => {   // start each pending drug with the prescribed quantity and the price-list price
     if (!d) return;
     setLines((cur) => Object.fromEntries(d.prescriptions.filter((r) => r.status === "pending").map((r) => [r.id, cur[r.id] || {
@@ -23,6 +27,7 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
   if (!d) return <Modal title="Case" onClose={onClose} wide><Spinner /></Modal>;
 
   const pending = d.prescriptions.filter((r) => r.status === "pending");
+  const canCollect = !hasAcc || user.roles?.includes("accountant") || user.roles?.includes("admin");   // with an accountant the pharmacist stops at billing
   const run = async (fn, ok) => {
     setBusy(true); setMsg(null);
     try { const r = await fn(); setD(r.data); setMsg({ tone: "success", text: ok }); } catch (x) { setMsg({ tone: "error", text: errMsg(x) }); } finally { setBusy(false); }
@@ -36,6 +41,13 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
       {["with_doctor", "at_lab", "back_to_doctor"].includes(d.case.stage) && <Notice>This patient has not been sent to the pharmacy yet.</Notice>}
       {d.case.stage === "completed" && <Notice tone="success">Paid in full. The case is complete.</Notice>}
 
+      {["at_pharmacy", "awaiting_payment"].includes(d.case.stage) && user.roles?.includes("pharmacist") && (
+        <div className="panel pad" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 8 }}>Call the patient</h3>
+          <div className="row"><div style={{ flex: 1 }}><Input label="" full value={callMsg} onChange={(e) => setCallMsg(e.target.value)} placeholder="Optional message, e.g. one drug is out of stock" /></div>
+            <button className="btn ghost" disabled={busy} onClick={() => run(async () => { const r = await api.post(`/cases/${caseId}/call-patient`, { message: callMsg }); setCallMsg(""); return r; }, "The patient was called (page and SMS).")}>Call patient</button></div>
+        </div>
+      )}
       {d.case.stage === "at_pharmacy" && (
         <div className="panel pad" style={{ marginBottom: 16 }}>
           <h3 style={{ marginBottom: 10 }}>Drugs to sell</h3>
@@ -72,7 +84,7 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
         <div className="panel pad" style={{ marginBottom: 16 }}>
           <h3>Bill {d.invoice.invoice_no}: {ugx(d.invoice.amount)}</h3>
           <p className="sub">Paid {ugx(d.invoice.paid)}. Balance {ugx((d.invoice.amount || 0) - (d.invoice.paid || 0))}.</p>
-          <button className="btn primary" onClick={() => setPay(true)}>Receive payment</button>
+          {canCollect ? <button className="btn primary" onClick={() => setPay(true)}>Receive payment</button> : <Notice>The bill was sent to the accountant, who receives payment, stamps and prints the documents.</Notice>}
         </div>
       )}
       <CaseDetail d={d} />

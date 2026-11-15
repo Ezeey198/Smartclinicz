@@ -110,7 +110,7 @@ def _load(name: str):
 
 
 ROUTERS = ["auth", "superadmin", "clinic", "finance", "patient_file", "wallet", "subscription", "activity", "stock", "payments",
-           "stamps", "cases", "pharmacy", "public", "public_page"]
+           "stamps", "cases", "pharmacy", "public", "public_page", "notifications", "profile", "attendance", "chat", "portal"]
 for _name in ROUTERS:
     _mod = _load(_name)
     if _mod:

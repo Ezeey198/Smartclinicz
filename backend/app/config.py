@@ -41,7 +41,7 @@ def _secret_key() -> str:
     return key
 
 
-APP_VERSION = "2026-11-10.1"   # keep equal to frontend/src/version.js
+APP_VERSION = "2026-11-14.1"   # keep equal to frontend/src/version.js
 
 
 class Settings:
@@ -54,6 +54,7 @@ class Settings:
     TRIAL_HOURS = float(os.getenv("TRIAL_HOURS", "2"))                    # free time after a clinic is approved
     PAYMENT_MODE = os.getenv("PAYMENT_MODE", "simulated")                 # simulated | live
     PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", "").rstrip("/")          # https address of this API, lets providers call back
+    TZ_OFFSET_HOURS = int(os.getenv("TZ_OFFSET_HOURS", "3"))      # local time for the twice-daily alerts (3 = East Africa)
     PHONE_COUNTRY_CODE = os.getenv("PHONE_COUNTRY_CODE", "256")
     # MTN MoMo Collections
     MTN_BASE_URL = os.getenv("MTN_BASE_URL", "https://sandbox.momodeveloper.mtn.com").rstrip("/")
@@ -73,6 +74,14 @@ class Settings:
     # Extra websites allowed to call this API, comma separated (the FRONTEND_URL is always allowed). "*" allows any site.
     CORS_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
     CORS_ORIGIN_REGEX = _env("CORS_ORIGIN_REGEX", r"https://smartclinicz[a-z0-9-]*\.vercel\.app")   # e.g. https://.*\.vercel\.app to also allow preview deployments
+    # SMS (Africa's Talking). Without these the messages are kept in the SMS outbox and not sent.
+    SMS_PROVIDER = _env("SMS_PROVIDER", "africastalking").lower()
+    AT_USERNAME = _env("AT_USERNAME")
+    AT_API_KEY = _env("AT_API_KEY")
+    AT_SENDER = _env("AT_SENDER")
+    # The AI assistant page uses the Anthropic API.
+    ANTHROPIC_API_KEY = _env("ANTHROPIC_API_KEY")
+    AI_MODEL = _env("AI_MODEL", "claude-sonnet-5-5")
     SMTP_HOST = _env("SMTP_HOST")
     SMTP_PORT = int(_env("SMTP_PORT", "587") or 587)
     SMTP_SECURITY = (_env("SMTP_SECURITY", "starttls") or "starttls").lower()  # starttls (587) | ssl (465) | none

@@ -13,6 +13,7 @@ from sqlalchemy import func
 from ..roles import MONEY_ROLES
 from ..models import (Activity, Appointment, Encounter, Product, Sale, SaleLine, StockBatch, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Expense, Patient, Payment,
                       Prescription, User, Visit)
+from ..models import role_list
 from ..roles import DEFAULT_ROLES, ROLE_LABELS, desc_for, enabled_roles, extra_roles, label_for, module_level, custom_roles
 from ..security import new_link_token
 
@@ -107,15 +108,15 @@ def save_role_settings(body: RolesIn, admin: User = Depends(clinic_admin_only), 
 @router.get("/staff")
 def staff(role: str | None = None, user: User = Depends(clinic_member), db: Session = Depends(get_db)):
     q = db.query(User).filter(User.clinic_id == user.clinic_id, User.is_active.is_(True))
-    if role:
-        q = q.filter(User.role == role)
-    return [{"id": u.id, "full_name": u.full_name, "role": u.role} for u in q.order_by(User.full_name)]
+    rows = [u for u in q.order_by(User.full_name) if not role or u.role == role]      # a person with several roles is found under each of them
+    return [{"id": u.id, "full_name": u.full_name, "role": str(u.role), "roles": role_list(u)} for u in rows]
 
 
 def _urow(u: User):
-    state = "active" if u.is_active else ("pending" if not u.password_hash else "inactive")
-    return {"id": u.id, "full_name": u.full_name, "email": u.email, "phone": u.phone, "role": u.role,
-            "role_label": label_for(u.role, u.clinic.clinic_class), "state": state,
+    state = "locked" if u.locked_at else "active" if u.is_active else ("pending" if not u.password_hash else "inactive")
+    roles = role_list(u)
+    return {"id": u.id, "full_name": u.full_name, "email": u.email, "phone": u.phone, "role": str(u.role), "roles": roles,
+            "role_label": " + ".join(label_for(r, u.clinic.clinic_class) for r in roles), "state": state, "failed_logins": u.failed_logins or 0,
             "created_at": u.created_at.isoformat() if u.created_at else None}
 
 
@@ -129,11 +130,22 @@ class UserIn(BaseModel):
     email: EmailStr
     phone: str | None = None
     role: str
+    extra_roles: list[str] = []       # a person can hold more than one role; their sidebars are combined
 
 
 def _check_role(clinic, role):
     if role not in enabled_roles(clinic):
         raise HTTPException(400, f"{ROLE_LABELS.get(role, role)} is not switched on for this clinic. Turn it on under Staff > Roles first.")
+
+
+def _check_roles(clinic, roles):
+    """The main role first, then any extra roles. Every one must be switched on for the clinic; only the main role can be admin."""
+    for i, r in enumerate(roles):
+        _check_role(clinic, r)
+        if r == "admin" and i > 0:
+            raise HTTPException(400, "Admin can only be a person's main role.")
+    if len(set(roles)) != len(roles):
+        raise HTTPException(400, "A role was chosen twice.")
 
 
 def _own(db, admin, uid) -> User:
@@ -145,11 +157,11 @@ def _own(db, admin, uid) -> User:
 
 @router.post("/users", status_code=201)
 def create_user(body: UserIn, admin: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
-    _check_role(admin.clinic, body.role)
+    _check_roles(admin.clinic, [body.role, *body.extra_roles])
     email = body.email.lower()
     if db.query(User).filter(User.clinic_id == admin.clinic_id, User.email == email).first():
         raise HTTPException(400, "Someone at this clinic already uses that email.")
-    u = User(clinic_id=admin.clinic_id, full_name=body.full_name, email=email, phone=body.phone, role=body.role,
+    u = User(clinic_id=admin.clinic_id, full_name=body.full_name, email=email, phone=body.phone, role=body.role, extra_roles=json.dumps(body.extra_roles),
              is_active=False, activation_token=new_link_token(),
              token_expires=datetime.utcnow() + timedelta(days=settings.INVITE_DAYS))
     db.add(u)
@@ -162,16 +174,19 @@ def create_user(body: UserIn, admin: User = Depends(clinic_admin_only), db: Sess
 @router.patch("/users/{uid}")
 def update_user(uid: int, payload: dict = Body(...), admin: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
     u = _own(db, admin, uid)
-    if "role" in payload and payload["role"] != u.role:
-        if u.id == admin.id:
-            raise HTTPException(400, "You cannot change your own role.")
-        _check_role(admin.clinic, payload["role"])
-        u.role = payload["role"]
+    if "roles" in payload or ("role" in payload and payload["role"] != u.role):
+        roles = [r for r in (payload.get("roles") or [payload["role"]]) if r]
+        if not roles:
+            raise HTTPException(422, "Choose at least one role.")
+        if u.id == admin.id and roles[0] != "admin":
+            raise HTTPException(400, "You cannot change your own main role.")
+        _check_roles(admin.clinic, roles)
+        u.role, u.extra_roles = roles[0], json.dumps(roles[1:])
     if payload.get("full_name"):
         u.full_name = payload["full_name"]
     if "phone" in payload:
         u.phone = payload["phone"] or None
-    log(db, admin, "staff", "updated", f"{admin.full_name} edited the account of {u.full_name}", {k: payload[k] for k in ("full_name", "phone", "role") if k in payload})
+    log(db, admin, "staff", "updated", f"{admin.full_name} edited the account of {u.full_name}", {k: payload[k] for k in ("full_name", "phone", "role", "roles") if k in payload})
     db.commit()
     return _urow(u)
 
@@ -187,6 +202,16 @@ def toggle_user(uid: int, admin: User = Depends(clinic_admin_only), db: Session 
         raise HTTPException(400, "This person has not approved their account by email yet. Resend the activation link instead.")
     u.is_active = not u.is_active
     log(db, admin, "staff", "activated" if u.is_active else "deactivated", f"{admin.full_name} {'reactivated' if u.is_active else 'deactivated'} {u.full_name}", {"role": u.role})
+    db.commit()
+    return _urow(u)
+
+
+@router.post("/users/{uid}/unlock")
+def unlock_user(uid: int, admin: User = Depends(clinic_admin_only), db: Session = Depends(get_db)):
+    """Unlocks an account that was locked after three wrong passwords."""
+    u = _own(db, admin, uid)
+    u.failed_logins, u.locked_at = 0, None
+    log(db, admin, "staff", "unlocked", f"{admin.full_name} unlocked the account of {u.full_name}")
     db.commit()
     return _urow(u)
 

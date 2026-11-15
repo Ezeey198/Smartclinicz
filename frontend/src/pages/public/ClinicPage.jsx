@@ -5,7 +5,7 @@ import { Clock, Globe, Mail, MapPin, Pencil, Phone } from "lucide-react";
 import api from "../../api";
 import { useAuth } from "../../auth";
 import { Empty, Modal, Pill, Spinner } from "../../components/ui";
-import { initials, kindLabel, mapEmbed, mapLink, mediaUrl } from "./media";
+import { hasMap, initials, kindLabel, mapEmbed, mapLink, mediaUrl } from "./media";
 
 export default function ClinicPage() {
   const { code } = useParams();
@@ -61,7 +61,7 @@ export default function ClinicPage() {
                 <p><MapPin size={14} /> {[l.address, l.city].filter(Boolean).join(", ")}</p>
                 {l.hours && <p><Clock size={14} /> {l.hours}</p>}
                 {l.phone && <p><Phone size={14} /> {l.phone}</p>}
-                {l.address && <><iframe className="map" title={`Map of ${l.address}`} src={mapEmbed(l)} loading="lazy" /><a className="btn ghost sm" href={mapLink(l)} target="_blank" rel="noreferrer">Get directions</a></>}
+                {hasMap(l) && <><iframe className="map" title={`Map of ${l.address || d.name}`} src={mapEmbed(l)} loading="lazy" /><a className="btn ghost sm" href={mapLink(l)} target="_blank" rel="noreferrer">Get directions</a></>}
               </div>))}
           </section>
           {(d.contact || d.hours) && (

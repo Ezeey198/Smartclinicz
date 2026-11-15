@@ -8,6 +8,14 @@ import expiredAdmin from "../roles/admin/expired";
 import Inactive from "./Inactive";
 import SubscriptionBanner from "./SubscriptionBanner";
 import useAlerts from "./useAlerts";
+import Avatar from "./Avatar";
+import ClockIn from "./ClockIn";
+import NotificationBell from "./NotificationBell";
+import ThemePicker from "./ThemePicker";
+import Profile from "../roles/shared/Profile";
+import Notifications from "../roles/shared/Notifications";
+import Chat from "../roles/shared/Chat";
+import AiAssistant from "../roles/shared/AiAssistant";
 import { Band, Notice, fmtStamp, ugx } from "./ui";
 
 const Logo = () => (
@@ -24,20 +32,25 @@ export default function Shell() {
   const [wallet, setWallet] = useState(null);
   const sub = user.clinic?.subscription;
   const expired = sub?.state === "expired";
-  const isAdmin = user.role === "admin";
+  const roles = user.roles || [user.role];                 // a person can hold several roles: their sidebars are combined
+  const isAdmin = roles.includes("admin");
   const { count, toasts, dismiss } = useAlerts(isAdmin && !expired);
 
   useEffect(() => setOpen(false), [loc.pathname]);
+  useEffect(() => {                                        // this account's colour theme (other accounts are not affected)
+    document.documentElement.dataset.theme = user.theme || "teal";
+    return () => { delete document.documentElement.dataset.theme; };
+  }, [user.theme]);
   useEffect(() => {
-    if (!user.clinic || !MONEY_ROLES.includes(user.role) || (expired && !isAdmin)) return;
+    if (!user.clinic || !roles.some((r) => MONEY_ROLES.includes(r)) || (expired && !isAdmin)) return;
     api.get("/wallet/summary").then((r) => setWallet(r.data.balance)).catch(() => {});
   }, [loc.pathname, user.role, expired]);
 
   if (expired && !user.is_superadmin && !isAdmin) return <Inactive />;
-  const roleKey = user.is_superadmin ? "superadmin" : user.clinic?.clinic_class === "P" && isAdmin ? "pharmacy_admin" : user.role;
-  const cfg = expired ? expiredAdmin : REGISTRY[roleKey];
+  const keyOf = (r) => (user.clinic?.clinic_class === "P" && r === "admin" ? "pharmacy_admin" : r);
+  const cfgs = expired ? [expiredAdmin] : user.is_superadmin ? [REGISTRY.superadmin] : roles.map((r) => REGISTRY[keyOf(r)]).filter(Boolean);
   const base = user.is_superadmin ? "/super" : "/app";
-  if (!cfg) return (
+  if (cfgs.length === 0) return (
     <div className="link-page"><div className="link-card">
       <div className="brand dark">ClinicPro</div>
       <h2>This website is out of date</h2>
@@ -45,14 +58,17 @@ export default function Shell() {
       <button className="btn primary" onClick={() => { logout(); nav("/"); }}>Sign out</button>
     </div></div>
   );
-  const items = cfg.nav.filter((i) => !i.module || user.modules?.[i.module]);
+  // The sidebar is every role's sidebar put together (each page once, the first role's page winning), plus Chat for everyone in a clinic.
+  const seen = new Set();
+  const items = [...cfgs.flatMap((c) => c.nav), ...(user.is_superadmin ? [] : [{ to: "/app/chat", label: "Chat", icon: "MessagesSquare" }])]
+    .filter((i) => i.label !== "My account" && !seen.has(i.to) && seen.add(i.to))
+    .filter((i) => !i.module || user.modules?.[i.module]);
+  const seenRoutes = new Set();
+  const common = [{ path: "profile", element: <Profile /> }, { path: "notifications", element: <Notifications /> }, ...(user.is_superadmin ? [] : [{ path: "chat", element: <Chat /> }, { path: "ai", element: <AiAssistant /> }])];
+  const routes = [...cfgs.flatMap((c) => c.routes), ...common].filter((r) => { const k = r.index ? "#index" : r.path; return !seenRoutes.has(k) && seenRoutes.add(k); });
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <button className="icon-btn" onClick={() => setOpen(!open)} aria-label="Menu"><Icons.Menu size={20} /></button>
-        <strong>ClinicPro</strong>
-      </header>
       <aside className={`side ${open ? "open" : ""}`}>
         <div className="brand"><Logo />ClinicPro</div>
         <div className="side-clinic">
@@ -74,14 +90,27 @@ export default function Shell() {
           <button className="icon-btn light" title="Sign out" aria-label="Sign out" onClick={() => { logout(); nav("/"); }}><Icons.LogOut size={18} /></button>
         </div>
       </aside>
+      <div className="col">
+      <header className="hdr">
+        <div className="hdr-left">
+          <button className="icon-btn hdr-menu" onClick={() => setOpen(!open)} aria-label="Menu"><Icons.Menu size={20} /></button>
+          <ThemePicker />
+        </div>
+        <div className="hdr-right">
+          {!user.is_superadmin && !expired && <ClockIn />}
+          <NotificationBell base={base} />
+          <button className="avatar-btn" onClick={() => nav(`${base}/profile`)} title="My profile" aria-label="Open my profile"><Avatar user={user} size={38} /></button>
+        </div>
+      </header>
       <main className="main">
         {expired && <div className="sub-banner warn"><span><b>Clinic inactive:</b> the subscription has ended. Staff cannot sign in until you renew.</span></div>}
-        {!expired && user.clinic && sub?.state === "active" && <SubscriptionBanner />}
+        {isAdmin && !expired && user.clinic && sub?.state === "active" && <SubscriptionBanner />}
         <Routes>
-          {cfg.routes.map((r) => (r.index ? <Route key="index" index element={r.element} /> : <Route key={r.path} path={r.path} element={r.element} />))}
+          {routes.map((r) => (r.index ? <Route key="index" index element={r.element} /> : <Route key={r.path} path={r.path} element={r.element} />))}
           <Route path="*" element={<Navigate to={base} replace />} />
         </Routes>
       </main>
+      </div>
       <div className="toasts" aria-live="polite">
         {toasts.map((a) => (
           <div key={a.id} className="toast" onClick={() => { dismiss(a.id); nav("/app/activity"); }}>

@@ -13,9 +13,8 @@ ROLE_LABELS = {
 # Every new clinic starts with these five roles. They follow the doctor -> lab -> pharmacy patient journey
 # (one combined bill, one case file for every patient). The clinic admin creates the people for them later.
 DEFAULT_ROLES = ["admin", "doctor", "nurse", "lab_technician", "pharmacist"]
-# Custom roles a clinic admin will be able to switch on later. ON HOLD: nothing is defined yet, so none can be switched on.
-# When they are defined, add them here (for example "receptionist", "accountant").
-CUSTOM_ROLES = []
+# Custom roles: added by the clinic admin on top of the default roles, for clinics that have more roles than the default five.
+CUSTOM_ROLES = ["receptionist", "radiologist", "accountant"]
 PHARMACY_ROLES = ["admin", "pharmacy_seller"]   # a pharmacy: its admin and its sellers
 
 
@@ -44,13 +43,13 @@ CLASS_NAMES = {"A": "Clinic", "B": "Clinic", "P": "Pharmacy"}   # shown to peopl
 
 ROLE_DESC = {
     "admin": "Full control of the clinic: staff, prices, wallet, subscription and every module.",
-    "doctor": "Consultations, diagnosis, prescriptions, lab and imaging requests.",
-    "nurse": "Triage, vital signs, check-in and patient care.",
-    "lab_technician": "Processes paid lab requests and enters results.",
-    "pharmacist": "Collects payment at the counter, dispenses prescriptions and manages pharmacy stock.",
-    "receptionist": "Registers patients, books appointments and raises invoices.",
-    "accountant": "Invoices, expenses paid from the wallet, price list and financial reports.",
-    "radiologist": "Reports on paid imaging requests such as X-ray and ultrasound.",
+    "doctor": "Receives or confirms the patient, consults, sets the consultation fee, sends to the lab or prescribes, and assigns nurses and beds.",
+    "nurse": "Cares for the patients the doctor assigns to them: vital signs, room and bed.",
+    "lab_technician": "Tests patients sent by the doctor, sets the lab fee, records results, and keeps the laboratory stock.",
+    "pharmacist": "Receives prescriptions, dispenses and sells medicines, does the billing, and manages pharmacy stock.",
+    "receptionist": "Receives the patient, records or finds the patient file, and assigns the patient to an available doctor.",
+    "accountant": "Receives the bill from the pharmacist, reviews payments, stamps and prints the final documents.",
+    "radiologist": "Works like the lab technician for imaging: X-ray, ultrasound and scans requested by the doctor.",
     "pharmacy_seller": "Sells medicines at the counter, takes payment and prints receipts.",
 }
 ADMIN_LABEL = {"P": "Pharmacy admin"}
@@ -67,7 +66,7 @@ def desc_for(role, clinic_class):
 
 PATIENT_FILE_ROLES = ["admin", "doctor", "nurse"]
 MONEY_ROLES = ["admin", "accountant", "pharmacist"]     # can see the clinic wallet balance
-COLLECTOR_ROLES = ["admin", "accountant", "pharmacist"]  # can receive patient payments
+COLLECTOR_ROLES = ["admin", "accountant", "pharmacist"]  # can receive patient payments (the pharmacist stops at billing when the clinic has an accountant)
 REPORT_ROLES = ["admin", "accountant"]                   # can open financial summaries
 TOPUP_ROLES = ["admin", "accountant"]
 
@@ -77,16 +76,16 @@ MODULE_ACCESS = {
                  "read": ["lab_technician", "pharmacist", "accountant", "radiologist"]},
     "appointments": {"write": ["doctor", "nurse", "receptionist"], "read": []},
     "visits": {"write": ["doctor", "nurse"], "read": []},
-    "lab": {"write": ["doctor", "lab_technician"], "read": ["nurse"]},
+    "lab": {"write": ["doctor", "lab_technician", "radiologist"], "read": ["nurse"]},
     "pharmacy": {"write": ["doctor", "pharmacist"], "read": ["nurse"]},
-    "inventory": {"write": ["pharmacist"], "read": ["doctor", "nurse"]},
+    "inventory": {"write": ["pharmacist", "lab_technician"], "read": ["doctor", "nurse"]},   # the lab technician keeps the laboratory stock
     "billing": {"write": ["accountant", "receptionist", "pharmacist"], "read": []},
     "imaging": {"write": ["doctor", "radiologist"], "read": ["nurse"]},
     "accounts": {"write": ["accountant"], "read": []},
     "hr": {"write": [], "read": []},                      # leave: clinic admin only 
     "prices": {"write": ["accountant"], "read": ["receptionist", "doctor", "nurse", "lab_technician", "radiologist", "pharmacist"]},
     "payroll": {"write": [], "read": ["accountant"]},    # salaries: clinic admin pays, accountant can view 
-    "cases": {"write": ["doctor", "pharmacist"], "read": ["nurse", "lab_technician"]},   # the patient journey
+    "cases": {"write": ["doctor", "pharmacist", "receptionist", "accountant"], "read": ["nurse", "lab_technician", "radiologist"]},   # the patient journey
     # pharmacies (class P)
     "products": {"write": [], "read": ["pharmacy_seller"]},
     "suppliers": {"write": [], "read": []},

@@ -8,7 +8,7 @@ export const STAMPERS = {
   prescription: ["doctor", "pharmacist"], consultation: ["doctor", "nurse"], lab_report: ["lab_technician", "doctor"],
   imaging_report: ["radiologist", "doctor"], appointment_slip: ["receptionist", "nurse", "doctor"], goods_received: ["pharmacist"],
   leave_letter: [], salary_slip: ["accountant"], patient_summary: ["doctor", "nurse", "receptionist"], medical_record: ["doctor", "nurse"],
-  expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist"], sale_receipt: ["pharmacy_seller"],
+  expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist", "accountant"], sale_receipt: ["pharmacy_seller"],
 };
 
 const when = (r) => fmtStamp(r.created_at);
@@ -76,7 +76,7 @@ export const DOCS = {
     const c = d.case, p = d.patient, t = d.totals;
     return { type: "case_file", id: c.id, ref: c.case_no, title: "Patient case file",
       ready: ["awaiting_payment", "completed"].includes(c.stage), readyNote: "The case file can be stamped once the pharmacy has generated the bill.",
-      meta: [["Patient", p.full_name], ["Patient no.", p.patient_no], ["Opened", fmtStamp(c.created_at)], ["Stage", label(c.stage)], ["Closed", c.closed_at ? fmtStamp(c.closed_at) : "-"]],
+      meta: [["Patient", p.full_name], ["Patient no.", p.patient_no], ["Visit No.", c.visit_no ? `No. ${c.visit_no}` : "-"], ["Opened", fmtStamp(c.created_at)], ["Stage", label(c.stage)], ["Closed", c.closed_at ? fmtStamp(c.closed_at) : "-"]],
       sections: [
         { heading: "Patient information", rows: [["Gender", p.gender], ["Date of birth", p.date_of_birth], ["Phone", p.phone], ["Address", p.address], ["Blood group", p.blood_group], ["Allergies", p.allergies],
           ["Next of kin", [p.next_of_kin, p.next_of_kin_phone].filter(Boolean).join(" · ")]] },

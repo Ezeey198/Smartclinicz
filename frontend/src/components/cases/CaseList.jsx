@@ -4,12 +4,12 @@ import { Empty, Notice, PageHead, Pill, Spinner, fmtStamp, ugx } from "../ui";
 import { EVENT_LABEL, STAGES, STAGE_LABEL } from "./meta";
 
 // A list of cases with tabs. Each role page decides the tabs, the title and what happens when a case is opened.
-export default function CaseList({ title, sub, tabs, onOpen, actions, reloadKey = 0, strip = false, empty = "No cases yet." }) {
+export default function CaseList({ title, sub, tabs, onOpen, actions, reloadKey = 0, strip = false, empty = "No cases yet.", rowFilter }) {
   const [rows, setRows] = useState(null);
   const [tab, setTab] = useState(tabs[0].key);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
-  const load = () => api.get("/cases").then((r) => setRows(r.data)).catch((e) => setErr(errMsg(e)));
+  const load = () => api.get("/cases").then((r) => setRows(rowFilter ? r.data.filter(rowFilter) : r.data)).catch((e) => setErr(errMsg(e)));
   useEffect(() => { load(); const id = setInterval(load, 15000); return () => clearInterval(id); }, [reloadKey]);   // stays up to date by itself
   if (err) return <Notice tone="error">{err}</Notice>;
   if (!rows) return <Spinner />;
@@ -32,7 +32,7 @@ export default function CaseList({ title, sub, tabs, onOpen, actions, reloadKey 
             <tbody>{shown.map((r) => (
               <tr key={r.id} className="click" onClick={() => onOpen(r)}>
                 <td><b>{r.case_no}</b><div className="sub">{fmtStamp(r.opened_at)}</div></td>
-                <td>{r.patient_name}</td>
+                <td>{r.patient_name}{r.visit_no > 1 && <span className="sub"> · Visit No. {r.visit_no}</span>}{(r.room || r.bed) && <div className="sub">{[r.room && `Room ${r.room}`, r.bed && `Bed ${r.bed}`].filter(Boolean).join(" · ")}</div>}</td>
                 <td><Pill value={r.stage}>{STAGE_LABEL[r.stage]}</Pill></td>
                 <td>{r.doctor_name}</td>
                 <td>{ugx(r.total)}<div className="sub">{r.invoice_status ? `Paid ${ugx(r.paid)}` : "Not billed yet"}</div></td>

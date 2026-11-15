@@ -1,3 +1,4 @@
+import Attendance from "./Attendance";
 import Dashboard from "./Dashboard";
 import Staff from "./Staff";
 import ClinicSettings from "./ClinicSettings";
@@ -47,11 +48,12 @@ export default {
     { to: "/app/stamp", label: "Clinic stamp", icon: "Stamp" },
     { to: "/app/subscription", label: "Subscription", icon: "BadgeCheck" },
     { to: "/app/staff", label: "Staff", icon: "UserCog" },
+    { to: "/app/attendance", label: "Attendance", icon: "Clock3" },
     { to: "/app/settings", label: "Clinic settings", icon: "Settings" },
     { to: "/app/wallet", label: "My wallet", icon: "Wallet" },
     { to: "/app/account", label: "My account", icon: "CircleUser" },
   ],
-  routes: [
+  routes: [{ path: "attendance", element: <Attendance /> }, 
     { index: true, element: <Dashboard /> }, { path: "cases", element: <Cases /> }, { path: "patients", element: <Patients /> }, { path: "appointments", element: <Appointments /> },
     { path: "consultations", element: <Consultations /> }, { path: "lab", element: <Laboratory /> }, { path: "pharmacy", element: <Pharmacy /> },
     { path: "stock", element: <Stock /> }, { path: "imaging", element: <Imaging /> }, { path: "billing", element: <Billing /> },

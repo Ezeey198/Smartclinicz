@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Power, Send, Trash2 } from "lucide-react";
+import { Pencil, Plus, Power, Send, Trash2, Unlock } from "lucide-react";
 import api, { errMsg } from "../../api";
 import { useAuth } from "../../auth";
 import { Empty, Notice, PageHead, Pill, Spinner } from "../../components/ui";
 import StaffForm from "./StaffForm";
 import RoleSettings from "./RoleSettings";
 
-const STATE = { active: ["green", "Active"], pending: ["amber", "Awaiting activation"], inactive: ["gray", "Deactivated"] };
+const STATE = { active: ["green", "Active"], pending: ["amber", "Awaiting activation"], inactive: ["gray", "Deactivated"], locked: ["coral", "Locked"] };
 
 export default function Staff() {
   const { user } = useAuth();
@@ -28,7 +28,7 @@ export default function Staff() {
   return (
     <>
       <PageHead title="Staff" sub="Create accounts for your team and choose their roles."><button className="btn primary" onClick={() => setEdit({})}><Plus size={16} />Add staff member</button></PageHead>
-      <Notice>{cls === "P" ? "Pharmacy" : "Clinic"}: {roles.length} roles available. New accounts stay inactive until the person opens the emailed link and sets a password.</Notice>
+      <Notice>{cls === "P" ? "Pharmacy" : "Clinic"}: {roles.length} roles available. A person can hold more than one role and gets the combined sidebar. A person who types a wrong password three times is locked: you are alerted and can email them a link to set a new password.</Notice>
       <RoleSettings onChanged={loadRoles} />
       {msg && <Notice tone={msg.tone}>{msg.text}{msg.link && <> <a href={msg.link}>{msg.link}</a></>}</Notice>}
       <div className="panel">
@@ -39,10 +39,11 @@ export default function Staff() {
               return (
                 <tr key={u.id}>
                   <td><b>{u.full_name}{me && " (you)"}</b><div className="sub">{u.email}</div></td><td>{u.role_label}</td><td>{u.phone}</td>
-                  <td><Pill tone={STATE[u.state][0]}>{STATE[u.state][1]}</Pill></td>
+                  <td><Pill tone={STATE[u.state][0]}>{STATE[u.state][1]}</Pill>{u.state === "locked" && <div className="sub">Locked after {u.failed_logins} wrong passwords</div>}</td>
                   <td className="row-actions">
                     <button className="icon-btn" title="Edit" onClick={() => setEdit(u)}><Pencil size={16} /></button>
-                    <button className="icon-btn" title={u.state === "active" ? "Send password link" : "Resend activation link"} onClick={() => act(() => api.post(`/clinic/users/${u.id}/resend`), "Link sent.")}><Send size={16} /></button>
+                    {u.state === "locked" && <button className="icon-btn" title="Unlock this account" onClick={() => act(() => api.post(`/clinic/users/${u.id}/unlock`), "Account unlocked.")}><Unlock size={16} /></button>}
+                    <button className="icon-btn" title={u.state === "pending" ? "Resend activation link" : "Email a link to set a new password"} onClick={() => act(() => api.post(`/clinic/users/${u.id}/resend`), "Link sent.")}><Send size={16} /></button>
                     {!me && <button className="icon-btn" title={u.state === "active" ? "Deactivate" : "Reactivate"} onClick={() => act(() => api.post(`/clinic/users/${u.id}/toggle`), u.state === "active" ? "Account deactivated." : "Account reactivated.")}><Power size={16} /></button>}
                     {!me && <button className="icon-btn danger" title="Delete" onClick={() => window.confirm(`Delete ${u.full_name}?`) && act(() => api.delete(`/clinic/users/${u.id}`), "Account deleted.")}><Trash2 size={16} /></button>}
                   </td>
