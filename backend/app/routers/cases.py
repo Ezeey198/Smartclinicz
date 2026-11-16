@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from .. import flow
+from .. import stockkeeping as sk
 from ..activity import log
 from ..notify import flush_sms
 from ..database import get_db
@@ -444,11 +445,11 @@ def dispense(cid: int, body: DispenseIn, user=Depends(write), db: Session = Depe
         rx.status = "dispensed"
         _charge(db, enc, user, "drug", f"Drug: {rx.drug}" + (f" ({rx.dosage})" if rx.dosage else ""), ln.quantity, ln.unit_price, rx.id)
         item = db.query(InventoryItem).filter(InventoryItem.clinic_id == enc.clinic_id, func.lower(InventoryItem.name) == rx.drug.strip().lower()).first()
-        if item and (item.quantity or 0) >= ln.quantity:
-            item.quantity -= ln.quantity
-            stock = f"stock now {item.quantity:g}"
-        else:
-            stock = "not taken off stock"
+        used = None
+        if item:
+            sk.ensure_identity(db, user, item)
+            used = sk.take(db, user, item, ln.quantity, f"Dispensed for case {enc.case_no}")      # oldest unexpired batch first
+        stock = f"stock now {item.quantity:g}" if used else "not taken off stock"
         notes.append(f"{rx.drug} x{ln.quantity:g} at UGX {ln.unit_price:,.0f} ({stock})")
     _event(db, enc, user, "dispensed", "; ".join(notes))
     log(db, user, "cases", "updated", f"{user.full_name} dispensed drugs for case {enc.case_no}", {"case": enc.case_no, "sold": notes})

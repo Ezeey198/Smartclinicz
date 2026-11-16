@@ -44,6 +44,18 @@ def retire_removed_roles():
         db.commit()
 
 
+def backfill_inventory():
+    """Older stock items get a Medicine ID, and any single old quantity becomes an opening batch with its own Stock ID. Safe to run every start."""
+    from types import SimpleNamespace
+    from .models import InventoryItem
+    from . import stockkeeping as sk
+    robot = SimpleNamespace(full_name="System")
+    with SessionLocal() as db:
+        for it in db.query(InventoryItem).order_by(InventoryItem.id).all():
+            sk.ensure_identity(db, robot, it)
+        db.commit()
+
+
 def grandfather_trials():
     """Clinics approved before subscriptions existed get a fresh trial period."""
     with SessionLocal() as db:

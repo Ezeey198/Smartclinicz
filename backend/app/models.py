@@ -232,8 +232,44 @@ class InventoryItem(Base):
     quantity = Column(Float, default=0)
     unit = Column(String(30))
     reorder_level = Column(Float)
-    expiry_date = Column(String(20))
+    expiry_date = Column(String(20))      # kept in step with the batches: the nearest expiry among stock still available
+    supplier = Column(String(200))        # the supplier of the latest batch
+    medicine_code = Column(String(20), index=True)     # Medicine ID, made automatically: MED-000001
+    created_at = Column(DateTime, default=now)
+
+
+class InventoryBatch(Base):
+    """One received lot of an item (a 'stock entry'). Stock is kept in batches so each has its own expiry, prices and location."""
+    __tablename__ = "inventory_batches"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    item_id = Column(Integer, index=True)
+    stock_no = Column(String(20), index=True)          # Stock ID, made automatically: STK-000001
+    batch_no = Column(String(60))
+    qty_received = Column(Float, default=0)
+    qty_available = Column(Float, default=0)
+    purchase_price = Column(Float, default=0)          # per unit
+    selling_price = Column(Float, default=0)           # per unit
+    expiry_date = Column(String(10))
     supplier = Column(String(200))
+    location = Column(String(120))                     # where it is kept: shelf, store or pharmacy location
+    created_at = Column(DateTime, default=now)
+
+
+class StockAdjustment(Base):
+    """The history of every change to stock: received, dispensed, corrected, damaged, expired, returned or edited."""
+    __tablename__ = "stock_adjustments"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    item_id = Column(Integer, index=True)
+    batch_id = Column(Integer, index=True)
+    stock_no = Column(String(20))
+    kind = Column(String(20))
+    change = Column(Float, default=0)
+    before = Column(Float, default=0)
+    after = Column(Float, default=0)
+    reason = Column(String(300))
+    user_name = Column(String(150))
     created_at = Column(DateTime, default=now)
 
 

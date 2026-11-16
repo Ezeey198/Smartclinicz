@@ -46,12 +46,16 @@ def init_database() -> bool:
             try:
                 from . import models  # noqa: F401  (registers every table)
                 from .database import Base, SessionLocal, engine
-                from .migrate import ensure_columns, grandfather_trials, retire_removed_roles
+                from .migrate import backfill_inventory, ensure_columns, grandfather_trials, retire_removed_roles
                 from .seed import seed_superadmin
                 Base.metadata.create_all(engine)
                 ensure_columns()
                 grandfather_trials()
                 retire_removed_roles()
+                try:
+                    backfill_inventory()
+                except Exception as e:      # older stock is also fixed the first time the Stock page opens
+                    print(f"Inventory backfill skipped: {e}", flush=True)
                 with SessionLocal() as db:
                     if seed_superadmin(db):
                         print(f"Superadmin created: {settings.SUPERADMIN_EMAIL}", flush=True)
@@ -109,7 +113,7 @@ def _load(name: str):
         return None
 
 
-ROUTERS = ["auth", "superadmin", "clinic", "finance", "patient_file", "wallet", "subscription", "activity", "stock", "payments",
+ROUTERS = ["auth", "superadmin", "clinic", "finance", "patient_file", "wallet", "subscription", "activity", "stock", "stockroom", "payments",
            "stamps", "cases", "pharmacy", "public", "public_page", "notifications", "profile", "attendance", "chat", "portal"]
 for _name in ROUTERS:
     _mod = _load(_name)

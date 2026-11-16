@@ -10,6 +10,7 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
   const [d, setD] = useState(null);
   const [lines, setLines] = useState({});
   const [prices, setPrices] = useState([]);
+  const [stockItems, setStockItems] = useState([]);       // each drug's next batch gives the selling price
   const [extra, setExtra] = useState({ description: "", quantity: 1, unit_price: "" });
   const { user } = useAuth();
   const [pay, setPay] = useState(false);
@@ -18,12 +19,19 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const load = () => api.get(`/cases/${caseId}`).then((r) => setD(r.data));
-  useEffect(() => { load(); api.get("/prices").then((r) => setPrices(r.data)).catch(() => {}); api.get("/clinic/staff", { params: { role: "accountant" } }).then((r) => setHasAcc(r.data.length > 0)).catch(() => {}); }, [caseId]);
+  useEffect(() => { load(); api.get("/prices").then((r) => setPrices(r.data)).catch(() => {}); api.get("/stockroom").then((r) => setStockItems(r.data.items)).catch(() => {}); api.get("/clinic/staff", { params: { role: "accountant" } }).then((r) => setHasAcc(r.data.length > 0)).catch(() => {}); }, [caseId]);
   useEffect(() => {   // start each pending drug with the prescribed quantity and the price-list price
     if (!d) return;
     setLines((cur) => Object.fromEntries(d.prescriptions.filter((r) => r.status === "pending").map((r) => [r.id, cur[r.id] || {
-      quantity: r.quantity || 1, unit_price: prices.find((p) => p.category === "pharmacy" && (p.name || "").toLowerCase() === r.drug.trim().toLowerCase())?.price ?? "" }])));
-  }, [d, prices]);
+      quantity: r.quantity || 1, unit_price: nextPrice(r.drug) ?? prices.find((p) => p.category === "pharmacy" && (p.name || "").toLowerCase() === r.drug.trim().toLowerCase())?.price ?? "" }])));
+  }, [d, prices, stockItems]);
+  // the selling price of the oldest unexpired batch that has stock (what will actually be dispensed next)
+  function nextPrice(drug) {
+    const it = stockItems.find((i) => (i.name || "").toLowerCase() === drug.trim().toLowerCase());
+    const t = new Date().toISOString().slice(0, 10);
+    const b = it?.batches.filter((x) => x.qty_available > 0 && (!x.expiry_date || x.expiry_date >= t)).sort((x, y) => (x.expiry_date || "9999").localeCompare(y.expiry_date || "9999"))[0];
+    return b && b.selling_price > 0 ? b.selling_price : undefined;
+  }
   if (!d) return <Modal title="Case" onClose={onClose} wide><Spinner /></Modal>;
 
   const pending = d.prescriptions.filter((r) => r.status === "pending");
