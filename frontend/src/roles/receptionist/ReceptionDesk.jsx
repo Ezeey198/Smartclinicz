@@ -16,7 +16,7 @@ export default function ReceptionDesk() {
         tabs={[{ key: "wait", label: "Waiting for a doctor", stages: ["awaiting_doctor"] }, { key: "now", label: "In progress", stages: ["with_doctor", "at_lab", "back_to_doctor", "at_pharmacy", "awaiting_payment"] },
           { key: "done", label: "Completed", stages: ["completed"] }, { key: "all", label: "All", stages: ["*"] }]}
         empty="No patients received yet." onOpen={(c) => setOpen(c.id)} />
-      {register && <OpenCaseModal reception onClose={() => setRegister(false)} onDone={() => { setRegister(false); setK(k + 1); }} />}
+      {register && <OpenCaseModal reception onOpenExisting={(id) => { setRegister(false); setOpen(id); }} onClose={() => setRegister(false)} onDone={() => { setRegister(false); setK(k + 1); }} />}
       {open && <CaseViewModal caseId={open} onClose={() => setOpen(null)} />}
     </>
   );

@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import api, { errMsg } from "../../api";
 import { Input, Modal, Notice } from "../ui";
 
-export default function OpenCaseModal({ onClose, onDone, reception = false }) {
+export default function OpenCaseModal({ onClose, onDone, reception = false, presetPatient = null, onOpenExisting }) {
   const [mode, setMode] = useState("existing");
   const [patients, setPatients] = useState([]);
-  const [q, setQ] = useState("");
-  const [pid, setPid] = useState("");
+  const [q, setQ] = useState(presetPatient ? `${presetPatient.full_name} (${presetPatient.patient_no})` : "");
+  const [pid, setPid] = useState(presetPatient ? presetPatient.id : "");
+  const [openNo, setOpenNo] = useState(null);       // the patient already has an open case: offer to open it
   const [f, setF] = useState({ full_name: "", gender: "", date_of_birth: "", phone: "", address: "", next_of_kin: "", next_of_kin_phone: "", blood_group: "", allergies: "", email: "" });
   const [doctors, setDoctors] = useState([]);
   const [doctorId, setDoctorId] = useState("");
@@ -22,12 +23,18 @@ export default function OpenCaseModal({ onClose, onDone, reception = false }) {
   const matches = q.trim() ? patients.filter((p) => `${p.full_name} ${p.patient_no} ${p.phone}`.toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [];
 
   const submit = async (e) => {
-    e.preventDefault(); setErr(""); setBusy(true);
+    e.preventDefault(); setErr(""); setOpenNo(null); setBusy(true);
     try {
       const body = mode === "existing" ? { patient_id: Number(pid), email: newEmail } : f;
       const { data } = await api.post(reception ? "/cases/register" : "/cases/open", reception ? { ...body, doctor_id: Number(doctorId) } : body);
       onDone(data);
-    } catch (x) { setErr(errMsg(x)); } finally { setBusy(false); }
+    } catch (x) {
+      const m = /\((CS-\d+)\)/.exec(errMsg(x));
+      setErr(errMsg(x)); if (m && onOpenExisting) setOpenNo(m[1]);
+    } finally { setBusy(false); }
+  };
+  const openExisting = async () => {
+    try { const c = (await api.get("/cases")).data.find((x) => x.case_no === openNo); if (c) onOpenExisting(c.id); else setErr("That case could not be found."); } catch (x) { setErr(errMsg(x)); }
   };
   return (
     <Modal title={reception ? "Receive and assign a patient" : "Receive a patient"} onClose={onClose} wide>
@@ -66,6 +73,7 @@ export default function OpenCaseModal({ onClose, onDone, reception = false }) {
           </Input>
         )}
         {err && <Notice tone="error">{err}</Notice>}
+        {openNo && <p><button type="button" className="btn primary" onClick={openExisting}>Open case {openNo}</button></p>}
         <div className="modal-foot"><button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
           <button className="btn primary" disabled={busy || (mode === "existing" && !pid) || (reception && !doctorId)}>{busy ? "Saving…" : reception ? "Register and assign to doctor" : "Start consultation"}</button></div>
       </form>

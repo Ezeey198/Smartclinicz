@@ -5,6 +5,7 @@ import api, { errMsg } from "../api";
 import { DOCS, STAMPERS } from "../config/documents";
 import { useAuth } from "../auth";
 import DocumentModal from "./DocumentModal";
+import DoctorCaseModal from "./cases/DoctorCaseModal";
 import { Empty, Notice, PageHead, Pill, Spinner, fmtDate } from "./ui";
 import { STAGE_LABEL } from "./cases/meta";
 
@@ -23,6 +24,9 @@ export default function PatientFile() {
   const [err, setErr] = useState("");
   const { user } = useAuth();
   const [doc, setDoc] = useState(null);
+  const [working, setWorking] = useState(null);        // the case the doctor is consulting on, opened from this file
+  const [busy, setBusy] = useState(false);
+  const isDoctor = user.roles?.includes("doctor") || user.roles?.includes("admin");
   useEffect(() => { api.get("/patients").then((r) => setPatients(r.data)).catch((e) => setErr(errMsg(e))); }, []);
 
   const openCase = async (id) => {                       // fetch the whole case file, then show it ready to print and stamp
@@ -33,6 +37,13 @@ export default function PatientFile() {
     setFile(null); setErr("");
     try { setFile((await api.get(`/records/patient/${id}`)).data); } catch (e) { setErr(errMsg(e)); }
   };
+  // Start a consultation straight from a previous patient's file. The patient keeps their record; this is their next visit.
+  const startConsultation = async () => {
+    setBusy(true); setErr("");
+    try { const { data } = await api.post("/cases/open", { patient_id: file.patient.id }); setWorking(data.case.id); }
+    catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
+  };
+  const current = file?.cases?.find((c) => c.stage !== "completed");        // a visit still in progress, if any
   const matches = q.trim() ? patients.filter((p) => `${p.full_name} ${p.patient_no} ${p.phone}`.toLowerCase().includes(q.toLowerCase())).slice(0, 8) : [];
   const p = file?.patient;
 
@@ -59,6 +70,13 @@ export default function PatientFile() {
               <dt>Phone</dt><dd>{p.phone || "—"}</dd><dt>Blood group</dt><dd>{p.blood_group || "—"}</dd><dt>Allergies</dt><dd>{p.allergies || "None recorded"}</dd>
               <dt>Next of kin</dt><dd>{[p.next_of_kin, p.next_of_kin_phone].filter(Boolean).join(" · ") || "—"}</dd>
             </dl>
+            {isDoctor && file.cases && (
+              <div className="no-print" style={{ marginTop: 14 }}>
+                {current
+                  ? <button className="btn primary" onClick={() => setWorking(current.id)}>Open current case ({current.case_no})</button>
+                  : <button className="btn primary" disabled={busy} onClick={startConsultation}>{busy ? "Starting…" : `Start consultation${file.cases.length ? ` (visit No. ${file.cases.length + 1})` : ""}`}</button>}
+                <span className="sub" style={{ marginLeft: 10 }}>{current ? "This patient already has a visit in progress." : "Opens the patient's next visit and takes you to the consultation."}</span>
+              </div>)}
           </div>
           {file.cases && (
             <>
@@ -68,7 +86,7 @@ export default function PatientFile() {
                   <div className="scroll"><table className="table"><thead><tr><th>Case</th><th>Opened</th><th>Doctor</th><th>Diagnosis</th><th>Stage</th><th className="no-print" /></tr></thead>
                     <tbody>{file.cases.map((c, i) => (
                       <tr key={c.id}><td><b>{c.case_no}</b>{i === 0 && <> <Pill tone="blue">Latest</Pill></>}</td><td>{fmtDate(c.created_at)}</td><td>{c.doctor_name}</td><td>{c.diagnosis}</td><td><Pill value={c.stage}>{STAGE_LABEL[c.stage]}</Pill></td>
-                        <td className="no-print"><button className="btn ghost sm" onClick={() => openCase(c.id)}><StampIcon size={14} />Print and stamp case file</button></td></tr>))}</tbody></table></div>
+                        <td className="no-print">{isDoctor && c.stage !== "completed" && <button className="btn primary sm" onClick={() => setWorking(c.id)}>Open case</button>} <button className="btn ghost sm" onClick={() => openCase(c.id)}><StampIcon size={14} />Print and stamp case file</button></td></tr>))}</tbody></table></div>
                 )}
               </div>
             </>
@@ -88,6 +106,7 @@ export default function PatientFile() {
         </>
       )}
           {doc && <DocumentModal doc={doc} onClose={() => setDoc(null)} />}
+    {working && <DoctorCaseModal caseId={working} onClose={() => { setWorking(null); open(file.patient.id); }} />}
     </>
   );
 }

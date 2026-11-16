@@ -19,7 +19,7 @@ export default function PatientDesk() {
         tabs={[{ key: "mine", label: "Needs me", stages: ["awaiting_doctor", "with_doctor", "back_to_doctor"] }, { key: "lab", label: "At the lab", stages: ["at_lab"] },
           { key: "ph", label: "At the pharmacy", stages: ["at_pharmacy", "awaiting_payment"] }, { key: "done", label: "Completed", stages: ["completed"] }, { key: "all", label: "All", stages: ["*"] }]}
         empty={hasRecep ? "No patients assigned to you yet." : "No patients yet. Receive the first patient."} onOpen={(c) => setOpen(c.id)} />
-      {receive && <OpenCaseModal onClose={() => setReceive(false)} onDone={(d) => { setReceive(false); setK(k + 1); setOpen(d.case.id); }} />}
+      {receive && <OpenCaseModal onOpenExisting={(id) => { setReceive(false); setOpen(id); }} onClose={() => setReceive(false)} onDone={(d) => { setReceive(false); setK(k + 1); setOpen(d.case.id); }} />}
       {open && <DoctorCaseModal caseId={open} onClose={() => { setOpen(null); setK(k + 1); }} />}
     </>
   );
