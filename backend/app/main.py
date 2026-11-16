@@ -91,6 +91,10 @@ async def prepare_database(request: Request, call_next):
         await run_in_threadpool(init_database)
     return await call_next(request)
 
+_DEFAULT_ORIGINS = [
+    "https://d-lo-p.vercel.app",
+]
+_DEFAULT_ORIGIN_REGEX = r"https://d-lo-p(-[a-z0-9-]+)?\.vercel\.app"
 
 app.middleware("http")(prepare_database)
 
