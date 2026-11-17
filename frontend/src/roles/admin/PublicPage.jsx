@@ -56,6 +56,7 @@ export default function PublicPage() {
         <h3 style={{ marginBottom: 12 }}>Details</h3>
         <div className="grid2">
           <Input label="Show on the public Clinics page?"><select className="input" value={p.listed ? "yes" : "no"} onChange={(e) => setP({ ...p, listed: e.target.value === "yes" })}><option value="yes">Yes, show it</option><option value="no">No, keep it hidden</option></select></Input>
+          {!p.listed && <Notice tone="error">Your page is hidden, so your photos and videos do not appear on the website's landing page either.</Notice>}
           <Input label="Show my phone, email and website?"><select className="input" value={p.show_contact ? "yes" : "no"} onChange={(e) => setP({ ...p, show_contact: e.target.value === "yes" })}><option value="yes">Yes</option><option value="no">No</option></select></Input>
           <Input full label="Tagline (one line)" value={p.tagline || ""} onChange={set("tagline")} maxLength={160} />
           <Input full label="About us"><textarea className="input" rows={4} value={p.about || ""} onChange={set("about")} /></Input>
@@ -95,6 +96,7 @@ export default function PublicPage() {
       </div>
       <div className="row" style={{ margin: "16px 0" }}><button className="btn primary" onClick={save} disabled={busy === "save"}>Save details</button></div>
 
+      <Notice>Every photo and video you add here appears on the website's landing page (in the sliding tiles) and on your own public page, as soon as the clinic is approved and shown. Delete one here and it disappears from both. <a href="/" target="_blank" rel="noreferrer">See the landing page</a></Notice>
       <h3 className="section">Photos ({d.photos.length}/30)</h3>
       <div className="panel pad">
         <div className="row" style={{ alignItems: "end" }}>

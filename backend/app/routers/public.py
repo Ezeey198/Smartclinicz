@@ -89,22 +89,34 @@ def media_of(db, clinic_id):
     return photos, videos
 
 
+def _landing_media(db, kind, per_clinic, total):
+    """The photos or videos that admins of approved, listed clinics and pharmacies uploaded to their public pages, for the landing page.
+    Each clinic contributes its newest few so one busy clinic cannot crowd the others out; a clinic that hides itself, or is not approved, contributes nothing."""
+    shown = {c.id: c for c in db.query(Clinic).filter(Clinic.status == "active", Clinic.approved_at.isnot(None)) if profile_of(c)["listed"]}
+    rows = (db.query(MediaItem.id, MediaItem.clinic_id, MediaItem.title, MediaItem.source, MediaItem.url)
+            .filter(MediaItem.kind == kind, MediaItem.clinic_id.in_(list(shown) or [0])).order_by(MediaItem.id.desc()).limit(3000).all())
+    taken, out = {}, []
+    for r in rows:
+        if r.clinic_id not in shown or taken.get(r.clinic_id, 0) >= per_clinic:
+            continue
+        taken[r.clinic_id] = taken.get(r.clinic_id, 0) + 1
+        c = shown[r.clinic_id]
+        out.append({"id": r.id, "title": r.title, "caption": r.title, "source": r.source, "url": r.url if r.source != "file" else None, "clinic": c.name, "code": c.code})
+        if len(out) >= total:
+            break
+    return out
+
+
 @router.get("/videos")
 def slideshow_videos(db: Session = Depends(get_db)):
-    """Every video of an approved, listed clinic or pharmacy (newest first): uploaded files, YouTube or Vimeo links and direct links. For the landing page."""
-    shown = {c.id: c for c in db.query(Clinic).filter(Clinic.status == "active", Clinic.approved_at.isnot(None)) if profile_of(c)["listed"]}
-    rows = (db.query(MediaItem.id, MediaItem.clinic_id, MediaItem.title, MediaItem.source, MediaItem.url).filter(MediaItem.kind == "video", MediaItem.clinic_id.in_(list(shown) or [0]))
-            .order_by(MediaItem.id.desc()).limit(60))
-    return [{"id": r.id, "title": r.title, "source": r.source, "url": r.url, "clinic": shown[r.clinic_id].name, "code": shown[r.clinic_id].code} for r in rows]
+    """The videos admins uploaded (files, YouTube or Vimeo links, direct links) for the landing page tiles."""
+    return _landing_media(db, "video", per_clinic=3, total=60)
 
 
 @router.get("/photos")
 def slideshow_photos(db: Session = Depends(get_db)):
-    """Every photo uploaded by an approved, listed clinic or pharmacy (newest first), for the landing-page slideshow."""
-    shown = {c.id: c for c in db.query(Clinic).filter(Clinic.status == "active", Clinic.approved_at.isnot(None)) if profile_of(c)["listed"]}
-    rows = (db.query(MediaItem.id, MediaItem.clinic_id, MediaItem.title).filter(MediaItem.kind == "photo", MediaItem.clinic_id.in_(list(shown) or [0]))
-            .order_by(MediaItem.id.desc()).limit(80))
-    return [{"id": r.id, "caption": r.title, "clinic": shown[r.clinic_id].name, "code": shown[r.clinic_id].code} for r in rows]
+    """The photos admins uploaded, for the landing page tiles."""
+    return _landing_media(db, "photo", per_clinic=6, total=120)
 
 
 @router.get("/clinics")
