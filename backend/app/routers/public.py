@@ -89,6 +89,15 @@ def media_of(db, clinic_id):
     return photos, videos
 
 
+@router.get("/videos")
+def slideshow_videos(db: Session = Depends(get_db)):
+    """Every video of an approved, listed clinic or pharmacy (newest first): uploaded files, YouTube or Vimeo links and direct links. For the landing page."""
+    shown = {c.id: c for c in db.query(Clinic).filter(Clinic.status == "active", Clinic.approved_at.isnot(None)) if profile_of(c)["listed"]}
+    rows = (db.query(MediaItem.id, MediaItem.clinic_id, MediaItem.title, MediaItem.source, MediaItem.url).filter(MediaItem.kind == "video", MediaItem.clinic_id.in_(list(shown) or [0]))
+            .order_by(MediaItem.id.desc()).limit(60))
+    return [{"id": r.id, "title": r.title, "source": r.source, "url": r.url, "clinic": shown[r.clinic_id].name, "code": shown[r.clinic_id].code} for r in rows]
+
+
 @router.get("/photos")
 def slideshow_photos(db: Session = Depends(get_db)):
     """Every photo uploaded by an approved, listed clinic or pharmacy (newest first), for the landing-page slideshow."""

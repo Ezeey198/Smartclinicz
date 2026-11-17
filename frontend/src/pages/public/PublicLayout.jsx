@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth";
+import { SITE_NAME } from "../../config/site";
 
-// The public website. The top bar has three things only: About and Clinics on the left, Sign in on the right.
+// The public website. The top bar: the name on the left, then About and Clinics, and Sign in on the right.
 export default function PublicLayout() {
   const { user } = useAuth();
   const nav = useNavigate();
@@ -26,13 +27,14 @@ export default function PublicLayout() {
   return (
     <div className="pub">
       <header className="pub-head">
+        <Link to="/" className="pub-brand">{SITE_NAME}</Link>
         <nav className="pub-nav"><NavLink to="/about">About</NavLink><NavLink to="/clinics">Clinics</NavLink></nav>
         <div className="pub-right">
           {user ? <Link className="btn primary" to={user.is_superadmin ? "/super" : "/app"}>Open my workspace</Link> : <Link className="btn primary" to="/login">Sign in</Link>}
         </div>
       </header>
       <main className="pub-main"><Outlet /></main>
-      <footer className="pub-foot">ClinicPro · clinics and pharmacies, online</footer>
+      <footer className="pub-foot">{SITE_NAME} · clinics and pharmacies, online</footer>
     </div>
   );
 }

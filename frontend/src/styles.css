@@ -216,7 +216,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* public website */
 .pub { min-height: 100vh; display: flex; flex-direction: column; background: #fff; }
-.pub-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 14px clamp(16px, 4vw, 40px); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(255, 255, 255, .94); backdrop-filter: blur(6px); z-index: 20; }
+.pub-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 14px clamp(16px, 4vw, 40px); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(255, 255, 255, .94); backdrop-filter: blur(6px); z-index: 20; }
 .pub-nav { display: flex; gap: 6px; } .pub-nav a { padding: 8px 14px; border-radius: 8px; text-decoration: none; color: var(--ink); font-weight: 600; } .pub-nav a:hover { background: var(--wash); } .pub-nav a.active { background: var(--wash); color: var(--lagoon-d); }
 .pub-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); font: 700 20px var(--head); } .pub-right { justify-self: end; }
 .pub-main { flex: 1; } .pub-foot { text-align: center; color: var(--muted); font-size: 13px; padding: 24px; border-top: 1px solid var(--line); position: relative; z-index: 1; background: #fff; }
@@ -316,3 +316,20 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .patient-body { max-width: 860px; margin: 0 auto; padding: 22px clamp(14px, 3vw, 24px) 60px; display: grid; gap: 18px; } .patient-body h3 { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; }
 .steps { list-style: none; margin: 10px 0 0; padding: 0; border-left: 3px solid var(--lagoon-l); } .steps li { padding: 6px 0 6px 14px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; } .steps small, .note small { color: var(--muted); }
 .note { display: grid; gap: 1px; padding: 9px 0; border-bottom: 1px solid var(--line); } .note span { color: var(--muted); font-size: 14px; }
+
+/* ---------- landing page: brand | About | Clinics | Sign in, then 3 tiles of sliding photos over 3 tiles of sliding videos ---------- */
+.pub-brand { color: var(--lagoon-d); font-size: 22px; margin-right: 14px; letter-spacing: .01em; }
+.pub-head .pub-nav { justify-self: start; }
+.tiles-home .pub { height: 100dvh; min-height: 0; } .tiles-home .pub-foot { display: none; } .tiles-home .pub-main { min-height: 0; display: flex; }
+.tiles { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 14px; padding: 14px clamp(14px, 3vw, 36px) clamp(14px, 3vw, 28px); background: var(--paper); }
+.tile { position: relative; overflow: hidden; border-radius: 16px; background: #0b2430; min-height: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .12); isolation: isolate; }
+.tile-slide { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.tile-slide video, .tile-slide iframe { width: 100%; height: 100%; object-fit: cover; border: 0; pointer-events: none; background: #000; }
+.tile-slide.in { animation: tile-in .8s cubic-bezier(.22, .8, .24, 1) both; } .tile-slide.out { animation: tile-out .8s cubic-bezier(.22, .8, .24, 1) both; }
+@keyframes tile-in { from { transform: translateX(100%); } to { transform: translateX(0); } } @keyframes tile-out { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) { .tile-slide.in, .tile-slide.out { animation: none; } .tile-slide.out { display: none; } }
+.tile-shade { position: absolute; inset: auto 0 0 0; height: 40%; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .55)); pointer-events: none; z-index: 1; }
+.tile-link { position: absolute; inset: 0; z-index: 2; display: flex; align-items: flex-end; padding: 12px 14px; text-decoration: none; }
+.tile-name { color: #fff; font-weight: 600; font-size: 14px; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); } .tile-link:hover .tile-name { text-decoration: underline; } .tile-link:focus-visible { outline: 3px solid var(--lagoon-l); outline-offset: -3px; border-radius: 16px; }
+.tile-empty { display: grid; place-content: center; justify-items: center; gap: 8px; color: rgba(255, 255, 255, .8); text-align: center; padding: 14px; background: linear-gradient(135deg, var(--ink), var(--lagoon-d)); }
+@media (max-width: 560px) { .tiles-home .pub { height: auto; min-height: 100dvh; } .tiles { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: 38vw; min-height: 0; } .pub-brand { font-size: 18px; margin-right: 4px; } }
