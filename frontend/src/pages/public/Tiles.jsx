@@ -1,59 +1,83 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ImageOff, VideoOff } from "lucide-react";
+import { ImageOff } from "lucide-react";
 import api from "../../api";
 import { mediaUrl } from "./media";
 
 const shuffle = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
-// Deals the shuffled items round and round into `n` tiles, so no two tiles show the same photo or video at the same moment (when there are enough).
-const deal = (items, n) => { const lists = Array.from({ length: n }, () => []); shuffle(items).forEach((x, i) => lists[i % n].push(x)); return lists.map((l, i) => (l.length ? l : items.length ? [items[i % items.length]] : [])); };
-const PHOTO_EVERY = 5000, VIDEO_MAX = 15000;
+const PHOTO_EVERY = 5000, VIDEO_MAX = 15000, TILES = 6;
+
+// The six spots share one pool of everything the clinics uploaded. Each spot, whenever it moves on, takes from the whole pool:
+// never something already on screen, preferably from a clinic no other spot is showing, the opposite kind to what it shows now (photo, then
+// video, then photo...), and, among those, whatever was shown longest ago, so everything gets its turn in a random order.
+export function makeBus(photos, videos) {
+  const pool = [...photos, ...videos];
+  const last = new Map(shuffle(pool).map((x, i) => [x.id, i]));          // a random starting order
+  const shown = new Map(), bad = new Set();
+  let tick = pool.length;
+  const choose = (tile, current, want) => {
+    const live = pool.filter((x) => !bad.has(x.id));
+    if (!live.length) return null;
+    const onScreen = new Set([...shown.values()].map((x) => x.id));
+    const elsewhere = new Set([...shown.entries()].filter(([t]) => t !== tile).map(([, x]) => x.code));
+    const wantKind = want || (current && current.kind === "photo" ? "video" : "photo");
+    const score = (x) => (onScreen.has(x.id) ? 1e7 : 0) + (elsewhere.has(x.code) ? 1e6 : 0) + (current && x.code === current.code ? 5e5 : 0) + (x.kind === wantKind ? 0 : 3e4) + (last.get(x.id) ?? 0) + Math.random();
+    return live.reduce((b, x) => (score(x) < score(b) ? x : b), live[0]);
+  };
+  // Is this item still a good next choice for this spot (not on screen, not from a clinic another spot shows, not broken)?
+  const fits = (tile, item) => !bad.has(item.id) && ![...shown.entries()].some(([t, x]) => x.id === item.id || (t !== tile && x.code === item.code));
+  const show = (tile, item) => { shown.set(tile, item); last.set(item.id, ++tick); };
+  return { choose, fits, show, release: (tile) => shown.delete(tile), markBad: (id) => bad.add(id), size: pool.length };
+}
 
 // A video's address, set to play silently on its own. YouTube and Vimeo get their autoplay options; files and direct links play in a <video>.
 const embed = (v) => (v.source === "youtube" ? `${v.url}?autoplay=1&mute=1&controls=0&loop=1&playsinline=1&rel=0&modestbranding=1&playlist=${v.url.split("/").pop()}`
   : v.source === "vimeo" ? `${v.url}?autoplay=1&muted=1&background=1&loop=1` : v.source === "file" ? mediaUrl(v.id) : v.url);
 const isEmbed = (v) => v.source === "youtube" || v.source === "vimeo";
 
-function Layer({ item, kind, cls, onEnded, single, onBad }) {
-  if (kind === "photo") return <div className={`tile-slide ${cls}`}><img src={mediaUrl(item.id)} alt={item.caption || `Photo from ${item.clinic}`} onError={() => onBad(item.id)} /></div>;
+function Layer({ item, cls, onEnded, single, onBad }) {
+  if (item.kind === "photo") return <div className={`tile-slide ${cls}`}><img src={mediaUrl(item.id)} alt={item.caption || `Photo from ${item.clinic}`} onError={() => onBad(item)} /></div>;
   return (
     <div className={`tile-slide ${cls}`}>
       {isEmbed(item) ? <iframe src={embed(item)} title={item.title || `Video from ${item.clinic}`} allow="autoplay; encrypted-media; picture-in-picture" tabIndex={-1} />
-        : <video src={embed(item)} muted autoPlay playsInline loop={single} preload="auto" disablePictureInPicture onEnded={onEnded} onError={() => onBad(item.id)} />}
+        : <video src={embed(item)} muted autoPlay playsInline loop={single} preload="auto" disablePictureInPicture onEnded={onEnded} onError={() => onBad(item)} />}
     </div>
   );
 }
 
-// One tile of the grid. It slides, on its own timing, from one photo (or video) to the next, and opens that clinic's page when pressed.
-function SlidingTile({ items: all, kind, startAfter }) {
-  const [bad, setBad] = useState([]);                                  // items that failed to load (for example just deleted): the tile skips them
-  const items = useMemo(() => all.filter((x) => !bad.includes(x.id)), [all, bad]);
-  const markBad = (id) => setBad((b) => (b.includes(id) ? b : [...b, id]));
-  const [s, setS] = useState({ cur: 0, prev: null });
-  const timer = useRef(null);
-  const n = items.length;
-  const next = () => setS((x) => (n > 1 ? { cur: (x.cur + 1) % n, prev: x.cur } : x));
+// One spot of the grid. It slides, on its own timing, to the next photo or video the shared pool gives it, and opens that clinic's page when pressed.
+function SlidingTile({ id, bus, start, startAfter }) {
+  const [s, setS] = useState({ cur: start, prev: null });
+  const up = useRef(null);                                              // what this spot will show next, chosen early so a photo can be loaded first
+  const next = () => setS((x) => {
+    const it = up.current && bus.fits(id, up.current) ? up.current : bus.choose(id, x.cur);       // the one picked early, unless things changed meanwhile
+    if (!it || it.id === x.cur.id) return x;
+    bus.show(id, it);
+    return { cur: it, prev: x.cur };
+  });
+  const dead = (item) => { bus.markBad(item.id); if (item.id === s.cur.id) next(); else up.current = null; };         // an item that will not load (for example just deleted) is dropped
   useEffect(() => {
-    if (n < 2) return undefined;
-    const every = kind === "photo" ? PHOTO_EVERY + startAfter * 0.4 : VIDEO_MAX;      // a video moves on when it ends, or after 15 seconds
-    timer.current = setTimeout(next, s.cur === 0 && s.prev === null ? startAfter + every : every);
-    return () => clearTimeout(timer.current);
-  }, [s.cur, n]);
+    up.current = bus.choose(id, s.cur);
+    if (up.current && up.current.kind === "photo") { const im = new Image(); const it = up.current; im.onerror = () => dead(it); im.src = mediaUrl(it.id); }
+    if (bus.size < 2) return undefined;
+    const every = s.cur.kind === "photo" ? PHOTO_EVERY + startAfter * 0.4 : VIDEO_MAX;                  // a photo stays about 5 seconds; a video moves on when it ends, or after 15
+    const t = setTimeout(next, s.prev === null ? startAfter + every : every);
+    return () => clearTimeout(t);
+  }, [s.cur.id]);
   useEffect(() => { if (s.prev === null) return undefined; const t = setTimeout(() => setS((x) => ({ ...x, prev: null })), 900); return () => clearTimeout(t); }, [s.prev]);
-  useEffect(() => { if (kind === "photo" && n > 1) { const im = new Image(); im.onerror = () => markBad(items[(s.cur + 1) % n].id); im.src = mediaUrl(items[(s.cur + 1) % n].id); } }, [s.cur, n]);   // the next photo is loaded (and checked) before it slides in
-  if (n === 0) return <div className="tile tile-empty">{kind === "photo" ? <ImageOff size={28} /> : <VideoOff size={28} />}<span>{kind === "photo" ? "Clinic photos will slide here" : "Clinic videos will play here"}</span></div>;
-  const cur = items[s.cur % n], prev = s.prev !== null ? items[s.prev % n] : null;
+  useEffect(() => () => bus.release(id), []);
+  const { cur, prev } = s;
   return (
     <div className="tile">
-      {prev && prev !== cur && <Layer key={`p${s.prev}-${prev.id}`} item={prev} kind={kind} cls="out" onBad={markBad} />}
-      <Layer key={`c${s.cur}-${cur.id}`} item={cur} kind={kind} cls={prev ? "in" : ""} onEnded={next} single={n === 1} onBad={markBad} />
+      {prev && <Layer key={`p${prev.id}`} item={prev} cls="out" onBad={dead} />}
+      <Layer key={`c${cur.id}`} item={cur} cls={prev ? "in" : ""} onEnded={next} single={bus.size < 2} onBad={dead} />
       <div className="tile-shade" />
       <Link className="tile-link" to={`/clinics/${cur.code}`} aria-label={`Open ${cur.clinic}`}><span className="tile-name">{cur.clinic}</span></Link>
     </div>
   );
 }
 
-// The landing page grid: three tiles of sliding clinic photos above three tiles of sliding clinic videos.
+// The landing page grid: six spots, and every one slides through a random mix of the photos and videos that different clinics uploaded.
 export default function Tiles() {
   const [photos, setPhotos] = useState(null);
   const [videos, setVideos] = useState(null);
@@ -69,12 +93,19 @@ export default function Tiles() {
     const id = setInterval(load, 60000);
     return () => clearInterval(id);
   }, []);
-  const p = useMemo(() => deal(photos || [], 3), [photos]);
-  const v = useMemo(() => deal(videos || [], 3), [videos]);
+  const ready = photos !== null && videos !== null;
+  // The pool, and what each spot shows first: different items, from different clinics, three photos and three videos.
+  const setup = useMemo(() => {
+    if (!ready) return null;
+    const bus = makeBus(photos.map((x) => ({ ...x, kind: "photo" })), videos.map((x) => ({ ...x, kind: "video" })));
+    const first = Array.from({ length: TILES }, (_, t) => { const it = bus.choose(t, null, t % 2 === 0 ? "photo" : "video"); if (it) bus.show(t, it); return it; });
+    return { bus, first, key: Math.random().toString(36).slice(2) };       // a new key restarts the spots whenever the uploaded set changes
+  }, [photos, videos, ready]);
   return (
     <div className="tiles" aria-label="Photos and videos from clinics">
-      {[0, 1, 2].map((i) => <SlidingTile key={`p${i}-${photos ? photos.map((x) => x.id).join(",") : "x"}`} items={p[i]} kind="photo" startAfter={i * 1700} />)}
-      {[0, 1, 2].map((i) => <SlidingTile key={`v${i}-${videos ? videos.map((x) => x.id).join(",") : "x"}`} items={v[i]} kind="video" startAfter={i * 2300} />)}
+      {Array.from({ length: TILES }, (_, t) => setup && setup.first[t]
+        ? <SlidingTile key={`${t}-${setup.key}`} id={t} bus={setup.bus} start={setup.first[t]} startAfter={t * 1500} />
+        : <div key={t} className="tile tile-empty"><ImageOff size={28} /><span>Clinic photos and videos will slide here</span></div>)}
     </div>
   );
 }
