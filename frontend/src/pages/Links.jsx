@@ -4,7 +4,7 @@ import api, { errMsg } from "../api";
 import { Band, Input, Notice, Spinner } from "../components/ui";
 
 function Card({ children }) {
-  return <div className="link-page"><div className="link-card"><div className="brand dark">ClinicPro</div>{children}</div></div>;
+  return <div className="link-page"><div className="link-card"><div className="brand dark">MediCare</div>{children}</div></div>;
 }
 
 function usePreview(kind) {

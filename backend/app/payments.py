@@ -186,7 +186,7 @@ def start(db, clinic, user, network, phone, amount, purpose) -> PaymentRequest:
         raise HTTPException(422, "Choose MTN Mobile Money or Airtel Money.")
     number = msisdn(phone)
     ref = str(uuid.uuid4())
-    _PROVIDERS[network][0](ref, number, amount, f"ClinicPro {clinic.code}")
+    _PROVIDERS[network][0](ref, number, amount, f"MediCare {clinic.code}")
     req = PaymentRequest(clinic_id=clinic.id, user_id=user.id, user_name=user.full_name, provider=network, reference=ref, phone=number,
                          amount=amount, purpose=purpose)
     db.add(req)

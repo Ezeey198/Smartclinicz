@@ -86,7 +86,7 @@ def _failed_login(db, user) -> bool:
             link = f"{settings.FRONTEND_URL}/superadmin"
             from ..models import User as U
             for sa in db.query(U).filter(U.is_superadmin.is_(True), U.is_active.is_(True)).all():
-                deliver(db, sa.email, f"Supervision alert: admin account locked at {c.name}", "Admin account locked", [f"Hello {sa.full_name},", body, "Open the system to review."], "Open ClinicPro", link)
+                deliver(db, sa.email, f"Supervision alert: admin account locked at {c.name}", "Admin account locked", [f"Hello {sa.full_name},", body, "Open the system to review."], "Open MediCare", link)
             user.activation_token = new_link_token()
             user.token_expires = datetime.utcnow() + timedelta(days=settings.INVITE_DAYS)
             db.commit()

@@ -52,7 +52,7 @@ export default function Shell() {
   const base = user.is_superadmin ? "/super" : "/app";
   if (cfgs.length === 0) return (
     <div className="link-page"><div className="link-card">
-      <div className="brand dark">ClinicPro</div>
+      <div className="brand dark">MediCare</div>
       <h2>This website is out of date</h2>
       <p>The server knows your role ("{user.role}") but this copy of the website does not. The website needs to be redeployed from the latest files.</p>
       <button className="btn primary" onClick={() => { logout(); nav("/"); }}>Sign out</button>
@@ -70,7 +70,7 @@ export default function Shell() {
   return (
     <div className="shell">
       <aside className={`side ${open ? "open" : ""}`}>
-        <div className="brand"><Logo />ClinicPro</div>
+        <div className="brand"><Logo />MediCare</div>
         <div className="side-clinic">
           {user.clinic ? (<><div className="cname">{user.clinic.name}</div><Band code={user.clinic.code} cls={user.clinic.clinic_class} /></>) : <div className="cname">System administration</div>}
           {wallet != null && <NavLink to="/app/wallet" className="wallet-chip"><Icons.Wallet size={15} />Wallet <b>{ugx(wallet)}</b></NavLink>}
