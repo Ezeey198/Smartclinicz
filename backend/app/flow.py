@@ -16,7 +16,7 @@ STEP_TEXT = {
     "lab_completed": "A result was released", "returned_to_doctor": "Results sent back to the doctor",
     "forwarded_to_pharmacy": "Prescription sent to the pharmacy", "dispensed": "Medicines dispensed", "prescription_cancelled": "A medicine was not supplied",
     "charge_added": "An extra item was added to your bill", "billed": "Your bill was prepared", "payment": "A payment was received",
-    "closed": "All your files are complete", "nurse_assigned": "A nurse and a bed were assigned to you", "patient_called": "The pharmacy called you",
+    "closed": "All your files are complete", "nurse_assigned": "A nurse and a bed were assigned to you", "patient_called": "The pharmacy called you", "rx_queried": "The pharmacy asked your doctor a question about your prescription", "rx_answered": "Your doctor answered the pharmacy",
     "document_ready": "Your final document is ready",
 }
 

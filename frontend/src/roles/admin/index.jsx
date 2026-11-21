@@ -1,4 +1,8 @@
 import Attendance from "./Attendance";
+import Sales from "../pharmacist/Sales";
+import Purchases from "../pharmacist/Purchases";
+import Returns from "../pharmacist/Returns";
+import PharmReports from "../pharmacist/PharmReports";
 import Dashboard from "./Dashboard";
 import Staff from "./Staff";
 import ClinicSettings from "./ClinicSettings";
@@ -35,6 +39,10 @@ export default {
     { to: "/app/lab", label: "Laboratory", icon: "FlaskConical", module: "lab" },
     { to: "/app/pharmacy", label: "Pharmacy", icon: "Pill", module: "pharmacy" },
     { to: "/app/stock", label: "Stock", icon: "Boxes", module: "inventory" },
+    { to: "/app/sales", label: "Walk-in sales", icon: "ShoppingCart", module: "inventory" },
+    { to: "/app/purchases", label: "Purchases and suppliers", icon: "Truck", module: "inventory" },
+    { to: "/app/returns", label: "Returns and refunds", icon: "RotateCcw", module: "inventory" },
+    { to: "/app/pharmacy-reports", label: "Pharmacy reports", icon: "ClipboardList", module: "inventory" },
     { to: "/app/imaging", label: "Imaging", icon: "ScanLine", module: "imaging" },
     { to: "/app/billing", label: "Billing", icon: "Receipt", module: "billing" },
     { to: "/app/expenses", label: "Expenses", icon: "Banknote", module: "accounts" },
@@ -53,7 +61,7 @@ export default {
     { to: "/app/wallet", label: "My wallet", icon: "Wallet" },
     { to: "/app/account", label: "My account", icon: "CircleUser" },
   ],
-  routes: [{ path: "attendance", element: <Attendance /> }, 
+  routes: [{ path: "attendance", element: <Attendance /> }, { path: "sales", element: <Sales /> }, { path: "purchases", element: <Purchases /> }, { path: "returns", element: <Returns /> }, { path: "pharmacy-reports", element: <PharmReports /> }, 
     { index: true, element: <Dashboard /> }, { path: "cases", element: <Cases /> }, { path: "patients", element: <Patients /> }, { path: "appointments", element: <Appointments /> },
     { path: "consultations", element: <Consultations /> }, { path: "lab", element: <Laboratory /> }, { path: "pharmacy", element: <Pharmacy /> },
     { path: "stock", element: <Stock /> }, { path: "imaging", element: <Imaging /> }, { path: "billing", element: <Billing /> },

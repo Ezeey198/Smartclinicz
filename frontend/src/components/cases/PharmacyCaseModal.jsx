@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import api, { errMsg } from "../../api";
 import PayModal from "../PayModal";
 import { useAuth } from "../../auth";
+import DocumentModal from "../DocumentModal";
+import { DOCS } from "../../config/documents";
 import { Input, Modal, Notice, Spinner, ugx } from "../ui";
 import CaseDetail from "./CaseDetail";
 
@@ -16,6 +18,8 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
   const [pay, setPay] = useState(false);
   const [hasAcc, setHasAcc] = useState(false);
   const [callMsg, setCallMsg] = useState("");
+  const [ask, setAsk] = useState({});                       // a question being written to the doctor, by prescription
+  const [labels, setLabels] = useState(false);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const load = () => api.get(`/cases/${caseId}`).then((r) => setD(r.data));
@@ -44,6 +48,7 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
   const sale = pending.reduce((s, r) => s + (Number(lines[r.id]?.quantity) || 0) * (Number(lines[r.id]?.unit_price) || 0), 0);
 
   return (
+    <>
     <Modal title={`Case ${d.case.case_no}`} onClose={onClose} wide>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {["with_doctor", "at_lab", "back_to_doctor"].includes(d.case.stage) && <Notice>This patient has not been sent to the pharmacy yet.</Notice>}
@@ -62,16 +67,21 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
           {pending.length === 0 ? <p className="sub">Every prescribed drug is dealt with. Add anything else the patient is buying, then generate the bill.</p> : (
             <table className="table"><thead><tr><th>Drug</th><th>Prescribed</th><th>Qty sold</th><th>Unit price (UGX)</th><th>Amount</th><th /></tr></thead>
               <tbody>{pending.map((r) => (
-                <tr key={r.id}><td><b>{r.drug}</b><div className="sub">{[r.dosage, r.duration].filter(Boolean).join(" · ")}</div></td><td>{r.quantity}</td>
+                <tr key={r.id}><td><b>{r.drug}</b><div className="sub">{[r.dosage, r.frequency, r.duration].filter(Boolean).join(" · ")}</div>
+                  {r.query_status === "open" && <div style={{ color: "var(--coral)" }}>Waiting for the doctor: “{r.query_note}”</div>}
+                  {r.query_status === "answered" && <div className="sub">Doctor answered: “{r.query_reply}”</div>}
+                  {ask[r.id] !== undefined && <div className="row" style={{ marginTop: 6 }}><input className="input" autoFocus placeholder="What is unclear?" value={ask[r.id]} onChange={(e) => setAsk({ ...ask, [r.id]: e.target.value })} /><button className="btn primary sm" disabled={busy || ask[r.id].trim().length < 3} onClick={() => run(async () => { const x = await api.post(`/cases/${caseId}/prescriptions/${r.id}/query`, { message: ask[r.id] }); setAsk((a) => { const n = { ...a }; delete n[r.id]; return n; }); return x; }, "Your question was sent to the doctor.")}>Send</button></div>}</td><td>{r.quantity}</td>
                   <td><input className="input" style={{ width: 90 }} type="number" min="0" step="any" value={lines[r.id]?.quantity ?? ""} onChange={(e) => setLine(r.id, "quantity", e.target.value)} /></td>
                   <td><input className="input" style={{ width: 120 }} type="number" min="0" step="any" value={lines[r.id]?.unit_price ?? ""} onChange={(e) => setLine(r.id, "unit_price", e.target.value)} /></td>
                   <td>{ugx((Number(lines[r.id]?.quantity) || 0) * (Number(lines[r.id]?.unit_price) || 0))}</td>
-                  <td><button className="btn ghost sm" disabled={busy} onClick={() => run(() => api.post(`/cases/${caseId}/prescriptions/${r.id}/cancel`), `${r.drug} marked as not supplied.`)}>Not available</button></td></tr>))}</tbody></table>
+                  <td className="row-actions">{r.query_status !== "open" && ask[r.id] === undefined && <button className="btn ghost sm" onClick={() => setAsk({ ...ask, [r.id]: "" })}>Ask the doctor</button>}<button className="btn ghost sm" disabled={busy} onClick={() => run(() => api.post(`/cases/${caseId}/prescriptions/${r.id}/cancel`), `${r.drug} marked as not supplied.`)}>Not available</button></td></tr>))}</tbody></table>
           )}
           {pending.length > 0 && <div className="row" style={{ marginTop: 12 }}>
-            <button className="btn primary" disabled={busy || pending.some((r) => lines[r.id]?.unit_price === "" || lines[r.id]?.unit_price === undefined)}
+            <button className="btn primary" disabled={busy || pending.some((r) => r.query_status === "open" || lines[r.id]?.unit_price === "" || lines[r.id]?.unit_price === undefined)}
               onClick={() => run(() => api.post(`/cases/${caseId}/dispense`, { lines: pending.map((r) => ({ prescription_id: r.id, quantity: Number(lines[r.id].quantity), unit_price: Number(lines[r.id].unit_price) })) }), "Drugs sold and added to the bill.")}>
-              Sell these drugs ({ugx(sale)})</button></div>}
+              Dispense and bill these drugs ({ugx(sale)})</button>
+            {pending.some((r) => r.query_status === "open") && <span className="sub">A drug with an open question cannot be dispensed yet.</span>}</div>}
+          {d.prescriptions.some((r) => r.status === "dispensed") && <div style={{ marginTop: 10 }}><button className="btn ghost sm" onClick={() => setLabels(true)}>Print medicine labels</button></div>}
 
           <h4 style={{ margin: "18px 0 8px" }}>Add another item</h4>
           <div className="line extraline">
@@ -98,5 +108,7 @@ export default function PharmacyCaseModal({ caseId, onClose }) {
       <CaseDetail d={d} />
       {pay && <PayModal invoice={d.invoice} onClose={() => setPay(false)} onDone={() => { setPay(false); load(); setMsg({ tone: "success", text: "Payment recorded." }); }} />}
     </Modal>
+      {labels && <DocumentModal doc={DOCS.medicine_label(d)} onClose={() => setLabels(false)} />}
+    </>
   );
 }

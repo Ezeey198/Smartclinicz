@@ -115,7 +115,7 @@ def staff(role: str | None = None, user: User = Depends(clinic_member), db: Sess
 def _urow(u: User):
     state = "locked" if u.locked_at else "active" if u.is_active else ("pending" if not u.password_hash else "inactive")
     roles = role_list(u)
-    return {"id": u.id, "full_name": u.full_name, "email": u.email, "phone": u.phone, "role": str(u.role), "roles": roles,
+    return {"id": u.id, "full_name": u.full_name, "email": u.email, "phone": u.phone, "role": str(u.role), "roles": roles, "qualification": u.qualification, "job_title": u.job_title,
             "role_label": " + ".join(label_for(r, u.clinic.clinic_class) for r in roles), "state": state, "failed_logins": u.failed_logins or 0,
             "created_at": u.created_at.isoformat() if u.created_at else None}
 
@@ -130,6 +130,8 @@ class UserIn(BaseModel):
     email: EmailStr
     phone: str | None = None
     role: str
+    qualification: str | None = None
+    job_title: str | None = None
     extra_roles: list[str] = []       # a person can hold more than one role; their sidebars are combined
 
 
@@ -161,7 +163,7 @@ def create_user(body: UserIn, admin: User = Depends(clinic_admin_only), db: Sess
     email = body.email.lower()
     if db.query(User).filter(User.clinic_id == admin.clinic_id, User.email == email).first():
         raise HTTPException(400, "Someone at this clinic already uses that email.")
-    u = User(clinic_id=admin.clinic_id, full_name=body.full_name, email=email, phone=body.phone, role=body.role, extra_roles=json.dumps(body.extra_roles),
+    u = User(clinic_id=admin.clinic_id, full_name=body.full_name, email=email, phone=body.phone, role=body.role, extra_roles=json.dumps(body.extra_roles), qualification=(body.qualification or "").strip() or None, job_title=(body.job_title or "").strip() or None,
              is_active=False, activation_token=new_link_token(),
              token_expires=datetime.utcnow() + timedelta(days=settings.INVITE_DAYS))
     db.add(u)
@@ -186,7 +188,10 @@ def update_user(uid: int, payload: dict = Body(...), admin: User = Depends(clini
         u.full_name = payload["full_name"]
     if "phone" in payload:
         u.phone = payload["phone"] or None
-    log(db, admin, "staff", "updated", f"{admin.full_name} edited the account of {u.full_name}", {k: payload[k] for k in ("full_name", "phone", "role", "roles") if k in payload})
+    for k in ("qualification", "job_title"):
+        if k in payload:
+            setattr(u, k, (payload[k] or "").strip() or None)
+    log(db, admin, "staff", "updated", f"{admin.full_name} edited the account of {u.full_name}", {k: payload[k] for k in ("full_name", "phone", "role", "roles", "qualification", "job_title") if k in payload})
     db.commit()
     return _urow(u)
 

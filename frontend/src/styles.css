@@ -333,3 +333,11 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .tile-name { color: #fff; font-weight: 600; font-size: 14px; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); } .tile-link:hover .tile-name { text-decoration: underline; } .tile-link:focus-visible { outline: 3px solid var(--lagoon-l); outline-offset: -3px; border-radius: 16px; }
 .tile-empty { display: grid; place-content: center; justify-items: center; gap: 8px; color: rgba(255, 255, 255, .8); text-align: center; padding: 14px; background: linear-gradient(135deg, var(--ink), var(--lagoon-d)); }
 @media (max-width: 560px) { .tiles-home .pub { height: auto; min-height: 100dvh; } .tiles { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: 38vw; min-height: 0; } .pub-brand { font-size: 18px; margin-right: 4px; } }
+
+/* ---------- pharmacy: walk-in sales ---------- */
+.sale-grid { display: grid; grid-template-columns: minmax(280px, 5fr) minmax(320px, 7fr); gap: 16px; align-items: start; } @media (max-width: 900px) { .sale-grid { grid-template-columns: 1fr; } }
+.sale-list { display: grid; gap: 6px; max-height: 480px; overflow-y: auto; margin-top: 8px; }
+.sale-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 12px; cursor: pointer; font: inherit; } .sale-item small { display: block; color: var(--muted); }
+.sale-item:hover:not(:disabled) { background: var(--wash); border-color: var(--lagoon); } .sale-item:disabled { opacity: .6; cursor: not-allowed; }
+.sale-total { display: flex; gap: 16px; align-items: baseline; justify-content: flex-end; margin: 12px 0; font-size: 18px; } .sale-total b { font-size: 24px; }
+.pharm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; } .pharm-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; } .pharm-card span { color: var(--muted); font-size: 13px; } .pharm-card b { font-size: 22px; } .pharm-card.warn { border-color: var(--coral); background: #fff5f3; } .pharm-card.warn b { color: var(--coral); }

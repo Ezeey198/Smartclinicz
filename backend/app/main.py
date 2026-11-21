@@ -113,7 +113,7 @@ def _load(name: str):
         return None
 
 
-ROUTERS = ["auth", "superadmin", "clinic", "finance", "patient_file", "wallet", "subscription", "activity", "stock", "stockroom", "payments",
+ROUTERS = ["auth", "superadmin", "clinic", "finance", "patient_file", "wallet", "subscription", "activity", "stock", "stockroom", "pharmdesk", "payments",
            "stamps", "cases", "pharmacy", "public", "public_page", "notifications", "profile", "attendance", "chat", "portal"]
 for _name in ROUTERS:
     _mod = _load(_name)

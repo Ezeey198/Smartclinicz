@@ -11,7 +11,7 @@ from ..activity import log
 from .. import flow
 from ..database import get_db
 from ..deps import clinic_admin_only, clinic_member
-from ..models import (Appointment, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Payment, Prescription,
+from ..models import (Appointment, Expense, ImagingOrder, InventoryItem, Invoice, LabOrder, LeaveRequest, Patient, Payment, PharmPurchase, Prescription, RetailSale,
                       SalaryPayment, StampUse, Visit, Encounter, Sale)
 from ..roles import ROLE_LABELS, module_level
 from ..subscriptions import iso
@@ -32,6 +32,8 @@ DOCS = {
     "medical_record": (Patient, "patients", "medical record", ("doctor", "nurse")),   # the whole patient file: consultations, lab, drugs, imaging, cases
     "case_file": (Encounter, "cases", "case file", ("doctor", "pharmacist", "accountant")),
     "sale_receipt": (Sale, "sales", "sale receipt", ("pharmacy_seller",)),
+    "retail_receipt": (RetailSale, "inventory", "walk-in sale receipt", ("pharmacist",)),
+    "pharm_purchase": (PharmPurchase, "inventory", "purchase record", ("pharmacist",)),
     "expense_voucher": (Expense, "accounts", "expense voucher", ("accountant",)),
 }
 READY = {  # a stamp means "approved", so some documents must be finished first

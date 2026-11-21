@@ -10,10 +10,11 @@ export default function DoctorCaseModal({ caseId, onClose }) {
   const [d, setD] = useState(null);
   const [n, setN] = useState({});
   const [tests, setTests] = useState([{ test_name: "", notes: "" }]);
-  const [rx, setRx] = useState([{ drug: "", dosage: "", duration: "", quantity: 1 }]);
+  const [rx, setRx] = useState([{ drug: "", dosage: "", frequency: "", duration: "", quantity: 1 }]);
   const [prices, setPrices] = useState([]);
   const [nurses, setNurses] = useState([]);
   const [hasRad, setHasRad] = useState(false);
+  const [rep, setRep] = useState({});                    // answers to the pharmacist's questions, by prescription
   const [dest, setDest] = useState("lab");
   const [assign, setAssign] = useState({ nurse_id: "", room: "", bed: "" });
   const [msg, setMsg] = useState(null);
@@ -55,6 +56,16 @@ export default function DoctorCaseModal({ caseId, onClose }) {
       {d.case.stage === "back_to_doctor" && <Notice tone="success">The lab has finished. Read the results below, then prescribe or send the patient on.</Notice>}
       {d.case.stage === "at_lab" && <Notice>The patient is at the lab. This case returns to you when every test is completed.</Notice>}
       {d.case.stage === "at_pharmacy" && <Notice>The patient is with the pharmacist.</Notice>}
+      {d.prescriptions.filter((r) => r.query_status === "open" && r.status === "pending").map((r) => (
+        <div key={r.id} className="panel pad" style={{ marginBottom: 16, borderColor: "var(--coral)" }}>
+          <h3>The pharmacist has a question about {r.drug}</h3>
+          <p style={{ margin: "6px 0" }}>“{r.query_note}”</p>
+          <p className="sub">{[r.dosage, r.frequency, r.duration, `Qty ${r.quantity}`].filter(Boolean).join(" · ")}</p>
+          <Input full label="Your answer" value={(rep[r.id] || {}).reply || ""} onChange={(e) => setRep({ ...rep, [r.id]: { ...(rep[r.id] || {}), reply: e.target.value } })} />
+          <div className="grid2">{[["drug", "Correct the drug"], ["dosage", "Correct the dosage"], ["frequency", "Correct how often"], ["duration", "Correct the days"], ["quantity", "Correct the quantity"]].map(([k, l]) => (
+            <Input key={k} label={`${l} (only if it was wrong)`} value={(rep[r.id] || {})[k] || ""} onChange={(e) => setRep({ ...rep, [r.id]: { ...(rep[r.id] || {}), [k]: e.target.value } })} />))}</div>
+          <button className="btn primary" disabled={busy || !((rep[r.id] || {}).reply || "").trim()} onClick={() => run(() => { const x = rep[r.id]; return api.post(`/cases/${caseId}/prescriptions/${r.id}/reply`, { reply: x.reply, drug: x.drug || null, dosage: x.dosage || null, frequency: x.frequency || null, duration: x.duration || null, quantity: x.quantity ? Number(x.quantity) : null }); }, "Answer sent to the pharmacist.")}>Send answer</button>
+        </div>))}
 
       {d.labs.length > 0 && (
         <div className="panel pad results" style={{ marginBottom: 16 }}>
@@ -100,10 +111,11 @@ export default function DoctorCaseModal({ caseId, onClose }) {
               <div className="line rxline" key={i}>
                 <input className="input" list="drugnames" placeholder="Drug" value={r.drug} onChange={(e) => upd(rx, setRx, i, "drug", e.target.value)} />
                 <input className="input" placeholder="Dosage" value={r.dosage} onChange={(e) => upd(rx, setRx, i, "dosage", e.target.value)} />
+                <input className="input" placeholder="How often" title="Frequency, e.g. three times a day" value={r.frequency} onChange={(e) => upd(rx, setRx, i, "frequency", e.target.value)} />
                 <input className="input" placeholder="Days" value={r.duration} onChange={(e) => upd(rx, setRx, i, "duration", e.target.value)} />
                 <input className="input" type="number" min="1" step="any" title="Quantity" value={r.quantity} onChange={(e) => upd(rx, setRx, i, "quantity", e.target.value)} />
               </div>))}
-            <div className="row"><button className="btn ghost sm" onClick={() => setRx([...rx, { drug: "", dosage: "", duration: "", quantity: 1 }])}>+ Add drug</button>
+            <div className="row"><button className="btn ghost sm" onClick={() => setRx([...rx, { drug: "", dosage: "", frequency: "", duration: "", quantity: 1 }])}>+ Add drug</button>
               <button className="btn primary" disabled={busy || !feeSet}
                 onClick={() => run(async () => { await save(); return api.post(`/cases/${caseId}/pharmacy`, { prescriptions: rx.filter((r) => r.drug.trim()).map((r) => ({ ...r, quantity: Number(r.quantity) || 1 })) }); }, "Sent to the pharmacist.")}>
                 {rx.some((r) => r.drug.trim()) ? "Prescribe and send to pharmacist" : "No drugs: send for billing"}</button></div>

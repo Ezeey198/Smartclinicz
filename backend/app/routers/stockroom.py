@@ -18,14 +18,15 @@ SOON_DAYS = 30
 
 
 def _batch(b):
-    return {"id": b.id, "stock_no": b.stock_no, "batch_no": b.batch_no, "qty_received": b.qty_received, "qty_available": b.qty_available, "purchase_price": b.purchase_price,
+    return {"id": b.id, "stock_no": b.stock_no, "batch_no": b.batch_no, "mfg_date": b.mfg_date, "qty_received": b.qty_received, "qty_available": b.qty_available, "purchase_price": b.purchase_price,
             "selling_price": b.selling_price, "expiry_date": b.expiry_date, "supplier": b.supplier, "location": b.location, "received_at": b.created_at.isoformat()}
 
 
 def _item(it, batches):
     live = [b for b in batches if (b.qty_available or 0) > 0]
     return {"id": it.id, "medicine_code": it.medicine_code, "name": it.name, "category": it.category, "unit": it.unit, "reorder_level": it.reorder_level,
-            "quantity": it.quantity or 0, "expiry_date": it.expiry_date, "supplier": it.supplier,
+            "quantity": it.quantity or 0, "expiry_date": it.expiry_date, "supplier": it.supplier, "generic_name": it.generic_name, "strength": it.strength, "dosage_form": it.dosage_form,
+            "purchase_price": it.purchase_price, "selling_price": it.selling_price, "prescription_only": bool(it.prescription_only),
             "locations": sorted({b.location for b in live if b.location}), "batches": [_batch(b) for b in batches]}
 
 
@@ -56,6 +57,7 @@ def stock(user=Depends(read), db: Session = Depends(get_db)):
 
 class BatchIn(BaseModel):
     batch_no: str | None = None
+    mfg_date: str | None = None
     quantity: float = Field(gt=0)
     purchase_price: float = Field(default=0, ge=0)
     selling_price: float = Field(default=0, ge=0)
@@ -69,6 +71,12 @@ class ItemIn(BaseModel):
     category: str | None = None
     unit: str | None = None
     reorder_level: float | None = Field(default=None, ge=0)
+    generic_name: str | None = None
+    strength: str | None = None
+    dosage_form: str | None = None
+    purchase_price: float | None = Field(default=None, ge=0)
+    selling_price: float | None = Field(default=None, ge=0)
+    prescription_only: bool = False
     first_batch: BatchIn | None = None
 
 
@@ -87,6 +95,8 @@ def new_item(body: ItemIn, user=Depends(write), db: Session = Depends(get_db)):
     if db.query(InventoryItem.id).filter(InventoryItem.clinic_id == user.clinic_id, InventoryItem.name.ilike(name)).first():
         raise HTTPException(409, f"{name} is already in stock. Use Add stock to put more onto it.")
     it = InventoryItem(clinic_id=user.clinic_id, name=name, category=body.category, unit=body.unit, reorder_level=body.reorder_level, quantity=0,
+                       generic_name=(body.generic_name or "").strip() or None, strength=(body.strength or "").strip() or None, dosage_form=(body.dosage_form or "").strip() or None,
+                       purchase_price=body.purchase_price, selling_price=body.selling_price, prescription_only=body.prescription_only,
                        medicine_code=sk.next_code(db, InventoryItem, InventoryItem.medicine_code, user.clinic_id, "MED"))
     db.add(it)
     db.flush()
@@ -94,7 +104,7 @@ def new_item(body: ItemIn, user=Depends(write), db: Session = Depends(get_db)):
     if b:
         _check_date(b.expiry_date)
         sk.new_batch(db, user, it, batch_no=b.batch_no, qty=b.quantity, purchase_price=b.purchase_price, selling_price=b.selling_price, expiry_date=b.expiry_date,
-                     supplier=b.supplier, location=b.location, kind="opening", reason="Opening stock")
+                     supplier=b.supplier, location=b.location, mfg_date=b.mfg_date, kind="opening", reason="Opening stock")
     log(db, user, "inventory", "created", f"{user.full_name} added {it.name} ({it.medicine_code}) to stock", {"medicine_id": it.medicine_code})
     db.commit()
     return _item(it, db.query(InventoryBatch).filter(InventoryBatch.item_id == it.id).all())
@@ -106,6 +116,14 @@ def edit_item(iid: int, payload: dict = Body(...), user=Depends(write), db: Sess
     for k in ("name", "category", "unit"):
         if k in payload and (payload[k] or "").strip():
             setattr(it, k, payload[k].strip())
+    for k in ("generic_name", "strength", "dosage_form"):
+        if k in payload:
+            setattr(it, k, (payload[k] or "").strip() or None)
+    for k in ("purchase_price", "selling_price"):
+        if k in payload:
+            setattr(it, k, None if payload[k] in (None, "") else max(0.0, float(payload[k])))
+    if "prescription_only" in payload:
+        it.prescription_only = bool(payload["prescription_only"])
     if "reorder_level" in payload:
         v = payload["reorder_level"]
         it.reorder_level = None if v in (None, "") else max(0.0, float(v))
@@ -133,7 +151,7 @@ def add_stock(iid: int, body: ReceiveIn, user=Depends(write), db: Session = Depe
         for k in ("purchase_price", "selling_price"):                  # a price typed now updates the batch
             if getattr(body, k):
                 setattr(b, k, getattr(body, k))
-        for k in ("expiry_date", "supplier", "location"):
+        for k in ("expiry_date", "supplier", "location", "mfg_date"):
             if (getattr(body, k) or "").strip():
                 setattr(b, k, getattr(body, k).strip())
         sk.record(db, user, it, b, "received", body.quantity, before, b.qty_available, f"Added to existing batch {b.batch_no or b.stock_no}")
@@ -143,7 +161,7 @@ def add_stock(iid: int, body: ReceiveIn, user=Depends(write), db: Session = Depe
         if no and db.query(InventoryBatch.id).filter(InventoryBatch.item_id == it.id, InventoryBatch.batch_no == no).first():
             raise HTTPException(409, f"Batch {no} already exists for {it.name}. Choose it under “Add to an existing batch”.")
         b = sk.new_batch(db, user, it, batch_no=no, qty=body.quantity, purchase_price=body.purchase_price, selling_price=body.selling_price, expiry_date=body.expiry_date,
-                         supplier=body.supplier, location=body.location)
+                         supplier=body.supplier, location=body.location, mfg_date=body.mfg_date)
     cost = round(body.quantity * (body.purchase_price or 0), 2)
     paid = body.pay_from_wallet and cost > 0
     if paid:
@@ -197,9 +215,9 @@ def edit_batch(bid: int, payload: dict = Body(...), user=Depends(write), db: Ses
         raise HTTPException(404, "Batch not found.")
     it = db.get(InventoryItem, b.item_id)
     changed = []
-    for k in ("batch_no", "expiry_date", "supplier", "location"):
+    for k in ("batch_no", "mfg_date", "expiry_date", "supplier", "location"):
         if k in payload and (payload[k] or "").strip() != (getattr(b, k) or ""):
-            if k == "expiry_date":
+            if k in ("expiry_date", "mfg_date"):
                 _check_date(payload[k])
             changed.append(f"{k.replace('_', ' ')}: {getattr(b, k) or '-'} -> {(payload[k] or '').strip() or '-'}")
             setattr(b, k, (payload[k] or "").strip() or None)

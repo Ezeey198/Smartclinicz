@@ -8,7 +8,7 @@ export const STAMPERS = {
   prescription: ["doctor", "pharmacist"], consultation: ["doctor", "nurse"], lab_report: ["lab_technician", "doctor"],
   imaging_report: ["radiologist", "doctor"], appointment_slip: ["receptionist", "nurse", "doctor"], goods_received: ["pharmacist"],
   leave_letter: [], salary_slip: ["accountant"], patient_summary: ["doctor", "nurse", "receptionist"], medical_record: ["doctor", "nurse"],
-  expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist", "accountant"], sale_receipt: ["pharmacy_seller"],
+  expense_voucher: ["accountant"], case_file: ["doctor", "pharmacist", "accountant"], sale_receipt: ["pharmacy_seller"], retail_receipt: ["pharmacist"], pharm_purchase: ["pharmacist"], medicine_label: [],
 };
 
 const when = (r) => fmtStamp(r.created_at);
@@ -71,6 +71,15 @@ export const DOCS = {
         table("Case files", "cases", ["Case", "Opened", "Diagnosis", "Stage"], (r) => [r.case_no, d(r.created_at), r.diagnosis, label(r.stage)]),
       ].filter(Boolean) };
   },
+  // A receipt for a walk-in sale. Like every document it shows no staff name.
+  retail_receipt: (s) => ({ type: "retail_receipt", id: s.id, ref: s.receipt_no, title: "Sales receipt",
+    meta: [["Receipt no.", s.receipt_no], ["Date", fmtStamp(s.created_at)], ["Customer", s.customer_name], ["Paid by", label(s.payment_method)], ...(s.payment_ref ? [["Reference", s.payment_ref]] : [])],
+    sections: [{ table: { cols: ["Item", "Qty", "Unit price", "Amount"], rows: s.lines.map((l) => [l.item_name, l.quantity, money(l.unit_price), money(l.line_total)]) } },
+      { rows: [["Subtotal", money(s.subtotal)], ...(s.discount ? [["Discount", money(s.discount)]] : []), ["Total", money(s.total)], ["Amount paid", money(s.amount_paid)], ...(s.change_given ? [["Change", money(s.change_given)]] : [])] }] }),
+  // The labels for the medicines handed to a patient: what it is, how much, how often, for how long.
+  medicine_label: (d) => ({ type: "medicine_label", id: d.case.id, ref: d.case.case_no, title: "Medicine labels",
+    meta: [["Patient", d.patient.full_name], ["Patient no.", d.patient.patient_no], ["Date", fmtStamp(new Date().toISOString())]],
+    sections: d.prescriptions.filter((r) => r.status === "dispensed").map((r) => ({ heading: r.drug, rows: [["Dosage", r.dosage], ["How often", r.frequency], ["For how long", r.duration], ["Quantity", r.quantity], ["Directions", "Keep out of reach of children. Finish the course unless told otherwise."]] })) }),
   expense_voucher: (r) => ({ type: "expense_voucher", id: r.id, ref: `EXP ${String(r.id).padStart(5, "0")}`, title: "Expense voucher",
     meta: [["Date", r.expense_date || when(r)], ["Category", r.category], ["Paid from", r.paid_from_wallet ? "Clinic wallet" : "Outside the wallet"]],
     sections: [{ heading: "Description", text: r.description }, { rows: [["Amount", money(r.amount)]] }] }),

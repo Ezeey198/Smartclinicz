@@ -60,6 +60,8 @@ class User(Base):
     last_seen_activity_id = Column(Integer, default=0)
     extra_roles = Column(Text)           # JSON list: the other roles this person also holds (their sidebars are combined)
     avatar = Column(Text)                # profile picture as a small data URL
+    qualification = Column(String(150))  # staff record
+    job_title = Column(String(100))
     theme = Column(String(40))           # colour theme chosen for this account only
     failed_logins = Column(Integer, default=0)
     locked_at = Column(DateTime)         # set after 3 wrong passwords; the clinic admin sends a reset email to unlock
@@ -203,6 +205,13 @@ class Prescription(Base):
     status = Column(String(20), default="pending")
     invoice_id = Column(Integer)
     prescribed_by = Column(String(150))
+    frequency = Column(String(100))                    # how often: three times a day...
+    query_note = Column(String(400))                   # the pharmacist's question to the doctor before dispensing
+    query_status = Column(String(12))                  # open | answered
+    query_reply = Column(String(400))
+    dispensed_by = Column(String(150))                 # dispensing record
+    dispensed_at = Column(DateTime)
+    dispensed_stock = Column(String(300))              # the Stock IDs and batches it was taken from
     created_at = Column(DateTime, default=now)
 
 
@@ -235,6 +244,12 @@ class InventoryItem(Base):
     expiry_date = Column(String(20))      # kept in step with the batches: the nearest expiry among stock still available
     supplier = Column(String(200))        # the supplier of the latest batch
     medicine_code = Column(String(20), index=True)     # Medicine ID, made automatically: MED-000001
+    generic_name = Column(String(200))
+    strength = Column(String(60))                      # e.g. 500mg
+    dosage_form = Column(String(60))                   # tablet, syrup, injection...
+    purchase_price = Column(Float)                     # usual prices; each batch keeps the prices it was really bought and sold at
+    selling_price = Column(Float)
+    prescription_only = Column(Boolean, default=False) # may only be dispensed against a prescription, never sold over the counter
     created_at = Column(DateTime, default=now)
 
 
@@ -246,6 +261,7 @@ class InventoryBatch(Base):
     item_id = Column(Integer, index=True)
     stock_no = Column(String(20), index=True)          # Stock ID, made automatically: STK-000001
     batch_no = Column(String(60))
+    mfg_date = Column(String(10))                      # manufacturing date
     qty_received = Column(Float, default=0)
     qty_available = Column(Float, default=0)
     purchase_price = Column(Float, default=0)          # per unit
@@ -321,6 +337,7 @@ class Payment(Base):
     invoice_id = Column(Integer, index=True)
     amount = Column(Float, default=0)
     method = Column(String(30))
+    reference = Column(String(80))                     # transaction reference (mobile money, card slip...)
     received_by = Column(String(150))
     created_at = Column(DateTime, default=now)
 
@@ -509,6 +526,7 @@ class Supplier(Base):
     phone = Column(String(50))
     email = Column(String(200))
     address = Column(String(300))
+    contact_person = Column(String(150))
     notes = Column(String(300))
     created_at = Column(DateTime, default=now)
 
@@ -669,3 +687,131 @@ class ChatMessage(Base):
     body = Column(Text)
     created_at = Column(DateTime, default=now)
     read_at = Column(DateTime)
+
+
+class MedicineCategory(Base):
+    __tablename__ = "medicine_categories"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    name = Column(String(100))
+    description = Column(String(300))
+    created_at = Column(DateTime, default=now)
+
+
+class PharmPurchase(Base):
+    """A request for medicines from a supplier. Receiving the delivery (checking quantities and expiry dates) puts the stock in."""
+    __tablename__ = "pharm_purchases"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    ref_no = Column(String(20))
+    supplier_id = Column(Integer)
+    supplier_name = Column(String(200))
+    purchase_date = Column(String(10))
+    status = Column(String(12), default="ordered")      # ordered | partial | received | cancelled
+    total = Column(Float, default=0)
+    supplier_invoice = Column(String(60))
+    notes = Column(String(300))
+    created_by = Column(String(150))
+    received_by = Column(String(150))
+    received_at = Column(DateTime)
+    paid_from_wallet = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=now)
+
+
+class PharmPurchaseLine(Base):
+    __tablename__ = "pharm_purchase_lines"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    purchase_id = Column(Integer, index=True)
+    item_id = Column(Integer)
+    item_name = Column(String(200))
+    qty_ordered = Column(Float, default=0)
+    qty_received = Column(Float, default=0)
+    unit_cost = Column(Float, default=0)
+    batch_no = Column(String(60))
+    mfg_date = Column(String(10))
+    expiry_date = Column(String(10))
+
+
+class RetailSale(Base):
+    """A walk-in sale of medicines and supplies to someone who is not a registered clinic patient. It takes from the same stock as dispensing."""
+    __tablename__ = "retail_sales"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    receipt_no = Column(String(20))
+    customer_name = Column(String(150))
+    customer_phone = Column(String(50))
+    subtotal = Column(Float, default=0)
+    discount = Column(Float, default=0)
+    total = Column(Float, default=0)
+    payment_method = Column(String(20))
+    payment_ref = Column(String(80))
+    amount_paid = Column(Float, default=0)
+    change_given = Column(Float, default=0)
+    sold_by_id = Column(Integer, index=True)
+    sold_by = Column(String(150))
+    status = Column(String(20), default="completed")     # completed | refunded
+    void_reason = Column(String(300))
+    voided_by = Column(String(150))
+    created_at = Column(DateTime, default=now)
+
+
+class RetailSaleLine(Base):
+    __tablename__ = "retail_sale_lines"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    sale_id = Column(Integer, index=True)
+    item_id = Column(Integer, index=True)
+    item_name = Column(String(200))
+    quantity = Column(Float)
+    unit_price = Column(Float)
+    unit_cost = Column(Float)
+    line_total = Column(Float)
+    stock_used = Column(String(300))
+
+
+class PharmReturn(Base):
+    """A medicine brought back. It only goes back into available stock after inspection and the admin's approval."""
+    __tablename__ = "pharm_returns"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    ref_no = Column(String(20))
+    item_id = Column(Integer)
+    item_name = Column(String(200))
+    batch_id = Column(Integer)
+    stock_no = Column(String(20))
+    quantity = Column(Float)
+    reason = Column(String(300))
+    source = Column(String(30))                          # walk-in sale | patient dispensing | other
+    sale_id = Column(Integer)
+    customer_name = Column(String(150))
+    refund_amount = Column(Float, default=0)
+    refund_method = Column(String(20))
+    inspection = Column(String(12))                      # good | damaged | expired
+    inspection_note = Column(String(300))
+    status = Column(String(20), default="awaiting_approval")   # awaiting_approval | approved | rejected
+    recorded_by = Column(String(150))
+    decided_by = Column(String(150))
+    decided_at = Column(DateTime)
+    decision_note = Column(String(300))
+    created_at = Column(DateTime, default=now)
+
+
+class Disposal(Base):
+    """Expired, damaged or lost medicine taken out of stock, with how it was disposed of."""
+    __tablename__ = "disposals"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    ref_no = Column(String(20))
+    item_id = Column(Integer)
+    item_name = Column(String(200))
+    batch_id = Column(Integer)
+    stock_no = Column(String(20))
+    batch_no = Column(String(60))
+    quantity = Column(Float)
+    expiry_date = Column(String(10))
+    reason = Column(String(20))                          # expired | damaged | lost
+    method = Column(String(100))
+    notes = Column(String(300))
+    disposed_by = Column(String(150))
+    created_at = Column(DateTime, default=now)

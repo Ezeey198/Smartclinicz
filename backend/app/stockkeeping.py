@@ -5,7 +5,7 @@ from sqlalchemy import func
 from .models import InventoryBatch, InventoryItem, StockAdjustment
 
 KINDS_OUT = ("damaged", "expired", "lost", "returned_to_supplier")    # take stock away
-KINDS = ("received", "dispensed", "correction", "count", "damaged", "expired", "lost", "returned_to_supplier", "returned_by_patient", "edited", "opening")
+KINDS = ("received", "dispensed", "sold", "correction", "count", "damaged", "expired", "lost", "returned_to_supplier", "returned_by_patient", "edited", "opening")
 
 
 def next_number(top, prefix) -> str:
@@ -53,9 +53,9 @@ def sync_item(db, item):
         item.supplier = sup[-1]
 
 
-def new_batch(db, user, item, *, batch_no, qty, purchase_price=0, selling_price=0, expiry_date=None, supplier=None, location=None, kind="received", reason="Stock received"):
+def new_batch(db, user, item, *, batch_no, qty, purchase_price=0, selling_price=0, expiry_date=None, supplier=None, location=None, mfg_date=None, kind="received", reason="Stock received"):
     b = InventoryBatch(clinic_id=item.clinic_id, item_id=item.id, stock_no=next_code(db, InventoryBatch, InventoryBatch.stock_no, item.clinic_id, "STK"),
-                       batch_no=(batch_no or "").strip() or None, qty_received=qty, qty_available=qty, purchase_price=purchase_price or 0, selling_price=selling_price or 0,
+                       batch_no=(batch_no or "").strip() or None, mfg_date=(mfg_date or "").strip() or None, qty_received=qty, qty_available=qty, purchase_price=purchase_price or 0, selling_price=selling_price or 0,
                        expiry_date=(expiry_date or "").strip() or None, supplier=(supplier or "").strip() or None, location=(location or "").strip() or None)
     db.add(b)
     db.flush()
@@ -64,7 +64,7 @@ def new_batch(db, user, item, *, batch_no, qty, purchase_price=0, selling_price=
     return b
 
 
-def take(db, user, item, qty, reason):
+def take(db, user, item, qty, reason, kind="dispensed"):
     """Dispenses from the oldest good batches. Returns {'price': selling price of the first batch used, 'used': [...]} or None if there is not enough."""
     today = datetime.utcnow().strftime("%Y-%m-%d")
     batches = db.query(InventoryBatch).filter(InventoryBatch.item_id == item.id, InventoryBatch.qty_available > 0).all()
@@ -77,10 +77,22 @@ def take(db, user, item, qty, reason):
         b = by_id[bid]
         before = b.qty_available
         b.qty_available = round(before - amount, 4)
-        record(db, user, item, b, "dispensed", -amount, before, b.qty_available, reason)
-        used.append({"stock_no": b.stock_no, "batch_no": b.batch_no, "quantity": amount, "selling_price": b.selling_price})
+        record(db, user, item, b, kind, -amount, before, b.qty_available, reason)
+        used.append({"stock_no": b.stock_no, "batch_no": b.batch_no, "quantity": amount, "selling_price": b.selling_price, "cost": b.purchase_price or 0})
+    before_total = item.quantity or 0
     sync_item(db, item)
-    return {"price": used[0]["selling_price"] if used else 0, "used": used}
+    if item.reorder_level is not None and before_total > item.reorder_level >= (item.quantity or 0):
+        from .notify import notify_roles                     # crossed the reorder level just now: tell the pharmacist and the admin (page + SMS)
+        notify_roles(db, item.clinic_id, ["pharmacist", "admin"], "Low stock", f"{item.name} ({item.medicine_code}) is down to {item.quantity:g} {item.unit or ''}. Reorder level is {item.reorder_level:g}.", link="/app/stock", kind="stock_alert")
+    got = sum(u["quantity"] for u in used) or 1
+    return {"price": used[0]["selling_price"] if used else 0, "cost": round(sum(u["quantity"] * u["cost"] for u in used) / got, 4), "used": used,
+            "label": ", ".join(f"{u['stock_no']} (batch {u['batch_no'] or '-'}) x{u['quantity']:g}" for u in used)}
+
+
+def good_stock(db, item) -> float:
+    """How much of this item is available and has not expired."""
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return sum(b.qty_available or 0 for b in db.query(InventoryBatch).filter(InventoryBatch.item_id == item.id, InventoryBatch.qty_available > 0) if not b.expiry_date or b.expiry_date >= today)
 
 
 def next_batch_price(db, item):

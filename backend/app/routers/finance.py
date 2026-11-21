@@ -53,6 +53,7 @@ def summary(user=Depends(reporter), db: Session = Depends(get_db)):
 class PayIn(BaseModel):
     amount: float = Field(gt=0)
     method: str = "cash"
+    reference: str | None = Field(default=None, max_length=80)      # mobile money / card transaction reference
 
 
 @router.post("/{rid}/pay")
@@ -65,7 +66,7 @@ def pay(rid: int, body: PayIn, user=Depends(collector), db: Session = Depends(ge
         raise HTTPException(400, f"The balance on this invoice is only UGX {balance:,.0f}.")
     inv.paid = (inv.paid or 0) + body.amount
     _invoice(inv)
-    p = Payment(clinic_id=user.clinic_id, invoice_id=inv.id, amount=body.amount, method=body.method, received_by=user.full_name)
+    p = Payment(clinic_id=user.clinic_id, invoice_id=inv.id, amount=body.amount, method=body.method, reference=(body.reference or "").strip() or None, received_by=user.full_name)
     db.add(p)
     db.flush()
     patient = db.get(Patient, inv.patient_id)

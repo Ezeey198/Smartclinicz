@@ -389,6 +389,7 @@ def send_to_lab(cid: int, body: LabIn, user=Depends(write), db: Session = Depend
 class RxItem(BaseModel):
     drug: str = Field(min_length=1)
     dosage: str | None = None
+    frequency: str | None = None
     duration: str | None = None
     quantity: float = Field(default=1, gt=0)
 
@@ -407,7 +408,7 @@ def send_to_pharmacy(cid: int, body: PharmacyIn, user=Depends(write), db: Sessio
     came_from_lab = db.query(LabOrder).filter(LabOrder.encounter_id == enc.id).count() > 0
     drugs = []
     for r in body.prescriptions:
-        db.add(Prescription(clinic_id=enc.clinic_id, patient_id=enc.patient_id, drug=r.drug.strip(), dosage=r.dosage, duration=r.duration, quantity=r.quantity,
+        db.add(Prescription(clinic_id=enc.clinic_id, patient_id=enc.patient_id, drug=r.drug.strip(), dosage=r.dosage, frequency=r.frequency, duration=r.duration, quantity=r.quantity,
                             status="pending", prescribed_by=user.full_name, encounter_id=enc.id))
         drugs.append(f"{r.drug} x{r.quantity:g}")
     enc.stage = "at_pharmacy"
@@ -437,23 +438,86 @@ def dispense(cid: int, body: DispenseIn, user=Depends(write), db: Session = Depe
     need(user, "pharmacist")
     enc = _get(db, user, cid)
     _stage(enc, "at_pharmacy")
-    notes = []
+    notes, flagged = [], []
     for ln in body.lines:
         rx = db.query(Prescription).filter(Prescription.id == ln.prescription_id, Prescription.encounter_id == enc.id).first()
         if not rx or rx.status != "pending":
             raise HTTPException(400, "One of the drugs is not waiting to be dispensed.")
-        rx.status = "dispensed"
-        _charge(db, enc, user, "drug", f"Drug: {rx.drug}" + (f" ({rx.dosage})" if rx.dosage else ""), ln.quantity, ln.unit_price, rx.id)
+        if rx.query_status == "open":
+            raise HTTPException(400, f"{rx.drug} has an open question to the doctor. Wait for the answer before dispensing it.")
         item = db.query(InventoryItem).filter(InventoryItem.clinic_id == enc.clinic_id, func.lower(InventoryItem.name) == rx.drug.strip().lower()).first()
         used = None
         if item:
             sk.ensure_identity(db, user, item)
-            used = sk.take(db, user, item, ln.quantity, f"Dispensed for case {enc.case_no}")      # oldest unexpired batch first
-        stock = f"stock now {item.quantity:g}" if used else "not taken off stock"
-        notes.append(f"{rx.drug} x{ln.quantity:g} at UGX {ln.unit_price:,.0f} ({stock})")
+            used = sk.take(db, user, item, ln.quantity, f"Dispensed for case {enc.case_no} ({rx.drug})")      # oldest unexpired batch first; expired stock is never issued
+            if used is None:
+                raise HTTPException(400, f"Cannot dispense {rx.drug}: only {sk.good_stock(db, item):g} {item.unit or ''} that has not expired is in stock, and {ln.quantity:g} are needed. Receive stock first, or cancel this drug.")
+        else:
+            flagged.append(rx.drug)                                 # a drug that is not in the stock records at all: allowed, but the admin is told
+        rx.status, rx.dispensed_by, rx.dispensed_at = "dispensed", user.full_name, datetime.utcnow()
+        rx.dispensed_stock = used["label"] if used else "not in stock records"
+        _charge(db, enc, user, "drug", f"Drug: {rx.drug}" + (f" ({rx.dosage})" if rx.dosage else ""), ln.quantity, ln.unit_price, rx.id)
+        notes.append(f"{rx.drug} x{ln.quantity:g} at UGX {ln.unit_price:,.0f} ({'stock now ' + format(item.quantity, 'g') if used else 'not in stock records'})")
+    if flagged:
+        flow.tell_roles(db, enc, ["admin"], "Medicine not in stock records", f"Case {enc.case_no}: {', '.join(flagged)} was dispensed but is not in the stock list. Add it so its stock is tracked.", link="/app/stock")
     _event(db, enc, user, "dispensed", "; ".join(notes))
-    log(db, user, "cases", "updated", f"{user.full_name} dispensed drugs for case {enc.case_no}", {"case": enc.case_no, "sold": notes})
+    log(db, user, "pharmacy", "dispensed", f"{user.full_name} dispensed drugs for case {enc.case_no}", {"case": enc.case_no, "dispensed": notes})   # the clinic admin sees every dispensing in the activity feed
     db.commit()
+    return _detail(db, enc)
+
+
+class QueryIn(BaseModel):
+    message: str = Field(min_length=3, max_length=400)
+
+
+@router.post("/{cid}/prescriptions/{rid}/query")
+def query_rx(cid: int, rid: int, body: QueryIn, user=Depends(write), db: Session = Depends(get_db)):
+    """Before dispensing, the pharmacist checks the prescription and asks the doctor about anything unclear (name, dose, quantity, instructions)."""
+    need(user, "pharmacist")
+    enc = _get(db, user, cid)
+    _stage(enc, "at_pharmacy")
+    rx = db.query(Prescription).filter(Prescription.id == rid, Prescription.encounter_id == enc.id, Prescription.status == "pending").first()
+    if not rx:
+        raise HTTPException(404, "Prescription not found.")
+    rx.query_note, rx.query_status, rx.query_reply = body.message.strip(), "open", None
+    _event(db, enc, user, "rx_queried", f"{rx.drug}: {rx.query_note}")
+    log(db, user, "pharmacy", "queried", f"{user.full_name} asked the doctor about {rx.drug} (case {enc.case_no}): {rx.query_note}", {"case": enc.case_no})
+    flow.tell_doctor(db, enc, "The pharmacist has a question", f"Case {enc.case_no}, {rx.drug}: {rx.query_note}", link="/app/desk")
+    flow.tell_roles(db, enc, ["admin"], "Prescription queried", f"{rx.drug} on case {enc.case_no}: {rx.query_note}", link="/app/cases")
+    db.commit()
+    flush_sms()
+    return _detail(db, enc)
+
+
+class ReplyIn(BaseModel):
+    reply: str = Field(min_length=2, max_length=400)
+    drug: str | None = None
+    dosage: str | None = None
+    frequency: str | None = None
+    duration: str | None = None
+    quantity: float | None = Field(default=None, gt=0)
+
+
+@router.post("/{cid}/prescriptions/{rid}/reply")
+def reply_rx(cid: int, rid: int, body: ReplyIn, user=Depends(write), db: Session = Depends(get_db)):
+    """The doctor answers the pharmacist's question and, if needed, corrects the prescription."""
+    need(user, "doctor")
+    enc = _get(db, user, cid)
+    rx = db.query(Prescription).filter(Prescription.id == rid, Prescription.encounter_id == enc.id, Prescription.status == "pending").first()
+    if not rx or rx.query_status != "open":
+        raise HTTPException(404, "There is no open question on that prescription.")
+    fixed = []
+    for k in ("drug", "dosage", "frequency", "duration", "quantity"):
+        v = getattr(body, k)
+        if v not in (None, "") and v != getattr(rx, k):
+            fixed.append(f"{k} {getattr(rx, k) or '-'} -> {v}")
+            setattr(rx, k, v.strip() if isinstance(v, str) else v)
+    rx.query_status, rx.query_reply = "answered", body.reply.strip()
+    _event(db, enc, user, "rx_answered", f"{rx.drug}: {rx.query_reply}" + (f" (corrected: {'; '.join(fixed)})" if fixed else ""))
+    log(db, user, "pharmacy", "answered", f"{user.full_name} answered the pharmacist about {rx.drug} (case {enc.case_no})" + (f"; corrected {'; '.join(fixed)}" if fixed else ""), {"case": enc.case_no})
+    flow.tell_roles(db, enc, ["pharmacist"], "The doctor answered", f"Case {enc.case_no}, {rx.drug}: {rx.query_reply}", link="/app/cases")
+    db.commit()
+    flush_sms()
     return _detail(db, enc)
 
 
@@ -467,6 +531,7 @@ def cancel_rx(cid: int, rid: int, user=Depends(write), db: Session = Depends(get
         raise HTTPException(404, "Prescription not found.")
     rx.status = "cancelled"
     _event(db, enc, user, "prescription_cancelled", f"{rx.drug} not supplied")
+    log(db, user, "pharmacy", "cancelled", f"{user.full_name} did not supply {rx.drug} (case {enc.case_no})", {"case": enc.case_no})
     db.commit()
     return _detail(db, enc)
 
