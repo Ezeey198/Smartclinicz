@@ -182,7 +182,7 @@ class TestMail(BaseModel):
 
 @router.post("/email-test")
 def email_test(body: TestMail, db: Session = Depends(get_db)):
-    return deliver(db, body.to, "MediCare test email", "Test email", ["If you can read this, email delivery works."], "Open MediCare", settings.FRONTEND_URL)
+    return deliver(db, body.to, "ClinicPro test email", "Test email", ["If you can read this, email delivery works."], "Open ClinicPro", settings.FRONTEND_URL)
 
 
 GRANT = "granted_by_admin"

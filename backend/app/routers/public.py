@@ -14,15 +14,15 @@ router = APIRouter(prefix="/public", tags=["public"])
 
 DEFAULT_ABOUT = {
     "headline": "One system for clinics and pharmacies",
-    "title": "About MediCare",
-    "intro": "MediCare helps clinics and pharmacies run patient care, stock, billing and staff in one place, and lets the public find them online.",
+    "title": "About ClinicPro",
+    "intro": "ClinicPro helps clinics and pharmacies run patient care, stock, billing and staff in one place, and lets the public find them online.",
     "sections": [
         {"heading": "For clinics", "text": "Patient records, appointments, consultations, laboratory, imaging, pharmacy, billing and staff, with every role working in its own space."},
         {"heading": "For pharmacies", "text": "A point of sale for sellers, stock kept in batches with expiry dates, suppliers and purchases, and sales reports for the pharmacy admin."},
         {"heading": "Accountable", "text": "Every action is recorded with who did it and when, and the clinic admin is alerted. Documents carry the clinic's digital stamp with the name of the person who used it."},
         {"heading": "Online anywhere", "text": "Staff sign in from any device. Each clinic and pharmacy has its own public page with photos, services, locations and videos."},
     ],
-    "clinics_intro": "Browse the clinics and pharmacies on MediCare. Open one to see its services, photos, locations and videos.",
+    "clinics_intro": "Browse the clinics and pharmacies on ClinicPro. Open one to see its services, photos, locations and videos.",
     "features": [
         {"heading": "Clinic", "text": "Admin, doctor, nurse, lab technician and pharmacist, with the patient journey from doctor to laboratory to pharmacy, one combined bill and one case file for every patient."},
         {"heading": "Pharmacy", "text": "Point of sale, batch and expiry tracking, suppliers and purchases, prescription control, wallet and sales reports."},
