@@ -20,7 +20,7 @@ read = module_guard("inventory")
 write = module_guard("inventory", write=True)
 
 
-def pread(user=Depends(pread)):
+def pread(user=Depends(read)):
     """The pharmacy's records (sales, purchases, returns, reports) are for the pharmacist and the clinic admin only."""
     if not (user.role == "pharmacist" or user.role == "admin"):
         raise HTTPException(403, "Only the pharmacist or the clinic admin can see the pharmacy records.")

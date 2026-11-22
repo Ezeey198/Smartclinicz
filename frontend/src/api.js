@@ -42,6 +42,7 @@ api.interceptors.response.use(
 export const errMsg = (e) => {
   if (e.response?.status === 413) return "That file is too large for the server. Use a smaller file, or add a YouTube or Vimeo link for videos.";
   const d = e.response?.data?.detail;
+  if (e.response?.status === 404 && (!d || d === "Not Found")) return "The server does not have this feature yet. The backend must be redeployed with the latest files. Open /api/health on your server to see what failed to start.";   // an unknown address, not a missing record
   if (!d) return e.message || "Something went wrong. Try again.";
   if (typeof d === "string") return d;
   if (Array.isArray(d)) return d.map((x) => `${String(x.loc?.slice(-1)[0] || "").replace(/_/g, " ")}: ${x.msg}`).join(". ");

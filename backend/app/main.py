@@ -150,6 +150,8 @@ async def health():
         stamp_types = sorted(DOCS)
     except Exception:
         pass
+    routes = {r.path for r in app.routes if hasattr(r, "path")}
+    features = {"pharmacy_desk": "/api/pharm/overview" in routes, "stock_batches": "/api/stockroom" in routes, "patient_portal": "/api/portal/me" in routes, "notifications": "/api/notifications" in routes}
     ok = STATE["database"] == "ok" and not STATE["problems"]
     return {"status": "ok" if ok else "degraded", "version": APP_VERSION, "database": STATE["database"], "uploads": STATE["uploads"],
-            "problems": STATE["problems"], "stamp_types": stamp_types, "case_workflow": True}
+            "problems": STATE["problems"], "stamp_types": stamp_types, "case_workflow": True, "features": features}

@@ -41,7 +41,7 @@ def _secret_key() -> str:
     return key
 
 
-APP_VERSION = "2026-11-14.1"   # keep equal to frontend/src/version.js
+APP_VERSION = "2026-11-21.1"   # keep equal to frontend/src/version.js
 
 
 class Settings:
