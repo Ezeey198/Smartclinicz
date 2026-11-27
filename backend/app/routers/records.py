@@ -236,6 +236,14 @@ def _product_delete(db, user, o):
 
 
 _none = lambda o: ""
+
+
+def _product_created(db, user, o, data):
+    """Every medicine gets its own code, made automatically (MED-000001). A controlled medicine is always prescription-only."""
+    from .. import phstock
+    o.medicine_code = o.medicine_code or phstock.new_med_code(db, user.clinic_id)
+    if o.controlled:
+        o.prescription_required = True
 _registration_fee = charger("registration", _none, "Registration fee", patient_of=lambda o: o.id, link=False)
 
 
@@ -297,8 +305,9 @@ routers = [
                 required=["staff_id", "month", "amount"], noun="salary payment", after_create=_pay_salary, gate=_no_edit),
     make_router("products", Product,
                 {"name": "str", "generic_name": "str", "category": "str", "unit": "str", "sku": "str", "reorder_level": "float",
-                 "selling_price": "float", "prescription_required": "bool"},
-                required=["name", "selling_price"], noun="product", before_delete=_product_delete),
+                 "selling_price": "float", "buying_price": "float", "prescription_required": "bool", "controlled": "bool", "strength": "str", "dosage_form": "str",
+                 "description": "str", "location": "str"},
+                required=["name", "selling_price"], noun="product", before_delete=_product_delete, after_create=_product_created),
     make_router("suppliers", Supplier, {"name": "str", "phone": "str", "email": "str", "address": "str", "notes": "str"},
                 required=["name"], noun="supplier"),
 ]

@@ -46,13 +46,14 @@ def init_database() -> bool:
             try:
                 from . import models  # noqa: F401  (registers every table)
                 from .database import Base, SessionLocal, engine
-                from .migrate import backfill_inventory, ensure_columns, grandfather_trials, retire_removed_roles
+                from .migrate import backfill_inventory, backfill_pharmacy, ensure_columns, grandfather_trials, retire_removed_roles
                 from .seed import seed_superadmin
                 Base.metadata.create_all(engine)
                 ensure_columns()
                 grandfather_trials()
                 retire_removed_roles()
                 try:
+                    backfill_pharmacy()
                     backfill_inventory()
                 except Exception as e:      # older stock is also fixed the first time the Stock page opens
                     print(f"Inventory backfill skipped: {e}", flush=True)

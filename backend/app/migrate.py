@@ -56,6 +56,19 @@ def backfill_inventory():
         db.commit()
 
 
+def backfill_pharmacy():
+    """Older pharmacy products get a medicine code, and older batches a Stock ID and a received quantity. Safe to run every start."""
+    from .models import Product, StockBatch
+    from . import phstock
+    with SessionLocal() as db:
+        for pr in db.query(Product).filter(Product.medicine_code.is_(None)).order_by(Product.id).all():
+            pr.medicine_code = phstock.new_med_code(db, pr.clinic_id)
+            db.flush()
+        for b in db.query(StockBatch).filter(StockBatch.stock_no.is_(None)).order_by(StockBatch.id).all():
+            phstock.give_identity(db, b)
+        db.commit()
+
+
 def grandfather_trials():
     """Clinics approved before subscriptions existed get a fresh trial period."""
     with SessionLocal() as db:

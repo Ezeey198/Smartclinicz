@@ -61,6 +61,7 @@ class User(Base):
     extra_roles = Column(Text)           # JSON list: the other roles this person also holds (their sidebars are combined)
     avatar = Column(Text)                # profile picture as a small data URL
     qualification = Column(String(150))  # staff record
+    discount_pct = Column(Float, default=0)   # pharmacy seller permission: the largest discount (percent) this seller may give
     job_title = Column(String(100))
     theme = Column(String(40))           # colour theme chosen for this account only
     failed_logins = Column(Integer, default=0)
@@ -515,6 +516,13 @@ class Product(Base):
     reorder_level = Column(Float)
     selling_price = Column(Float, default=0)
     prescription_required = Column(Boolean, default=False)
+    medicine_code = Column(String(20), index=True)     # unique medicine code, made automatically: MED-000001
+    strength = Column(String(60))
+    dosage_form = Column(String(60))
+    description = Column(String(300))
+    location = Column(String(120))                     # where it is normally stored
+    controlled = Column(Boolean, default=False)        # controlled medicine: always needs a verified prescription and is entered in the controlled register
+    buying_price = Column(Float)                       # usual buying price (each batch keeps its real cost)
     created_at = Column(DateTime, default=now)
 
 
@@ -543,6 +551,12 @@ class StockBatch(Base):
     cost_price = Column(Float, default=0)
     supplier_id = Column(Integer)
     purchase_id = Column(Integer)
+    stock_no = Column(String(20), index=True)          # Stock ID, made automatically: STK-000001
+    qty_received = Column(Float, default=0)
+    mfg_date = Column(String(10))
+    location = Column(String(120))
+    status = Column(String(12), default="usable")      # usable | quarantined | recalled (the last two are never sold)
+    status_note = Column(String(300))
     created_at = Column(DateTime, default=now)
 
 
@@ -589,6 +603,10 @@ class Sale(Base):
     sold_by_id = Column(Integer, index=True)
     sold_by = Column(String(150))
     status = Column(String(20), default="completed")  # completed | voided
+    customer_id = Column(Integer, index=True)
+    prescription_id = Column(Integer)
+    payment_ref = Column(String(80))                   # mobile money or card transaction reference
+    discount_by = Column(String(150))                  # who allowed the discount
     void_reason = Column(String(300))
     voided_by = Column(String(150))
     created_at = Column(DateTime, default=now)
@@ -815,3 +833,88 @@ class Disposal(Base):
     notes = Column(String(300))
     disposed_by = Column(String(150))
     created_at = Column(DateTime, default=now)
+
+
+class PharmCustomer(Base):
+    """The customer register: the necessary details of people the pharmacy serves."""
+    __tablename__ = "pharm_customers"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    name = Column(String(150))
+    phone = Column(String(50), index=True)
+    address = Column(String(300))
+    notes = Column(String(300))
+    created_by = Column(String(150))
+    created_at = Column(DateTime, default=now)
+
+
+class PharmRx(Base):
+    """The prescription register. The seller records a prescription and refers it; the admin (the authorized professional) verifies it before it can be dispensed."""
+    __tablename__ = "pharm_rx"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    rx_no = Column(String(30))
+    customer_name = Column(String(150))
+    customer_phone = Column(String(50))
+    prescriber = Column(String(150))
+    facility = Column(String(150))
+    rx_date = Column(String(10))
+    items = Column(Text)
+    notes = Column(String(300))
+    status = Column(String(12), default="pending")      # pending | verified | rejected | dispensed
+    decided_by = Column(String(150))
+    decided_at = Column(DateTime)
+    decision_note = Column(String(300))
+    sale_id = Column(Integer)
+    created_by = Column(String(150))
+    created_by_id = Column(Integer, index=True)
+    created_at = Column(DateTime, default=now)
+
+
+class PharmRegister(Base):
+    """One table behind the pharmacy's operating and safety registers: temperature, refrigerator, storage and quality inspections, adverse reactions,
+    medication errors, controlled medicines, cleaning, pest control, equipment maintenance, incidents, complaints, handovers, cash and staff registers."""
+    __tablename__ = "pharm_registers"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    kind = Column(String(30), index=True)
+    record_date = Column(String(10))
+    title = Column(String(200))
+    amount = Column(Float)
+    status = Column(String(20))
+    details = Column(Text)                               # JSON: the fields that belong to this kind of register
+    recorded_by = Column(String(150))
+    recorded_by_id = Column(Integer, index=True)
+    resolved_by = Column(String(150))
+    resolution = Column(String(300))
+    created_at = Column(DateTime, default=now)
+
+
+class PharmStockTake(Base):
+    """A physical stock count. The differences from the system quantities are the stock discrepancy register."""
+    __tablename__ = "pharm_stocktakes"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    ref_no = Column(String(20))
+    scope = Column(String(120))
+    status = Column(String(12), default="counting")      # counting | finalized
+    started_by = Column(String(150))
+    finalized_by = Column(String(150))
+    finalized_at = Column(DateTime)
+    created_at = Column(DateTime, default=now)
+
+
+class PharmStockTakeLine(Base):
+    __tablename__ = "pharm_stocktake_lines"
+    id = Column(Integer, primary_key=True)
+    clinic_id = _cid()
+    take_id = Column(Integer, index=True)
+    product_id = Column(Integer)
+    batch_id = Column(Integer)
+    product_name = Column(String(200))
+    stock_no = Column(String(20))
+    batch_no = Column(String(60))
+    system_qty = Column(Float, default=0)
+    counted_qty = Column(Float)
+    counted_by = Column(String(150))
+    applied = Column(Boolean, default=False)
